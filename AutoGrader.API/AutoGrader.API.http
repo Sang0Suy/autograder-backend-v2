@@ -1,0 +1,6 @@
+@AutoGrader.API_HostAddress = http://localhost:5244
+
+GET {{AutoGrader.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
