@@ -204,7 +204,7 @@ export default function ClassManager() {
 
         const finalAvgScore = totalWeight > 0 ? (weightedScore / totalWeight).toFixed(1) : "0.0";
 
-        return { totalTests, avgScore: finalAvgScore, tests }
+        return { totalTests, avgScore: finalAvgScore, tests, scoresTX, scores15p, scores45p, scoresThi }
     }
 
     const totalPages = Math.ceil(displayStudents.length / itemsPerPage);
@@ -643,7 +643,40 @@ export default function ClassManager() {
 
                                         {/* Cột Điểm TB */}
                                         <TableCell className="text-center font-black text-emerald-600 text-xl bg-slate-100/30 backdrop-blur-sm">
-                                            {extThi !== null ? extThi : stats.avgScore}
+                                            {/* Cột Điểm TB */}
+                                            <TableCell className="text-center font-black text-emerald-600 text-xl bg-slate-100/30 backdrop-blur-sm">
+                                                {(() => {
+                                                    // Khôi phục mảng điểm để tính toán
+                                                    let arrTX = [...stats.scoresTX];
+                                                    let arr15p = [...stats.scores15p];
+                                                    let arr45p = [...stats.scores45p];
+                                                    let arrThi = [...stats.scoresThi];
+
+                                                    // Cộng dồn điểm cũ từ extraAttributes vào mảng tính toán (nếu có)
+                                                    if (extTX !== null) arrTX.push(extTX);
+                                                    if (ext15 !== null) arr15p.push(ext15);
+                                                    if (ext45 !== null) arr45p.push(ext45);
+                                                    if (extThi !== null) arrThi.push(extThi);
+
+                                                    // Tính trung bình từng cột
+                                                    const avgCat = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+                                                    const avgTX = avgCat(arrTX);
+                                                    const avg15p = avgCat(arr15p);
+                                                    const avg45p = avgCat(arr45p);
+                                                    const avgThi = avgCat(arrThi);
+
+                                                    // Áp dụng hệ số tính điểm tổng quát
+                                                    let totalWeight = 0;
+                                                    let weightedScore = 0;
+                                                    if (avgTX !== null) { weightedScore += avgTX * weights.tx; totalWeight += weights.tx; }
+                                                    if (avg15p !== null) { weightedScore += avg15p * weights.p15; totalWeight += weights.p15; }
+                                                    if (avg45p !== null) { weightedScore += avg45p * weights.p45; totalWeight += weights.p45; }
+                                                    if (avgThi !== null) { weightedScore += avgThi * weights.thi; totalWeight += weights.thi; }
+
+                                                    const finalScore = totalWeight > 0 ? (weightedScore / totalWeight).toFixed(1) : "0.0";
+                                                    return finalScore;
+                                                })()}
+                                            </TableCell>
                                         </TableCell>
 
                                         <TableCell className="text-right space-x-1 pr-6 whitespace-nowrap">
