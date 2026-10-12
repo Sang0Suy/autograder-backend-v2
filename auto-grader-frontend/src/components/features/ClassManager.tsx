@@ -153,14 +153,18 @@ export default function ClassManager() {
 
         tests.forEach(t => {
             const r = rubrics.find(rub => rub.id === t.testId);
-            // Gộp chung Text để tìm kiếm giống hệt hàm renderScorePills
+            // Gộp cả tiêu đề và kiểu để quét
             const targetText = ((r?.title || "") + " " + (r?.examType || "")).toLowerCase();
             const score = t.totalScore || 0;
 
-            if (["15 phút", "15p"].some(k => targetText.includes(k))) scores15p.push(score);
-            else if (["45 phút", "45p", "1 tiết", "1t", "định kỳ", "giữa kỳ"].some(k => targetText.includes(k))) scores45p.push(score);
-            else if (["thi học kỳ", "thi hk", "điểm thi", "thi", "cuối kỳ"].some(k => targetText.includes(k))) scoresThi.push(score);
-            else scoresTX.push(score);
+            const is15p = ["15 phút", "15p"].some(k => targetText.includes(k));
+            const is45p = ["45 phút", "45p", "1 tiết", "1t", "định kỳ", "giữa kỳ"].some(k => targetText.includes(k));
+            const isThi = ["thi học kỳ", "thi hk", "điểm thi", "thi", "cuối kỳ"].some(k => targetText.includes(k));
+
+            if (is15p) scores15p.push(score);
+            else if (is45p) scores45p.push(score);
+            else if (isThi) scoresThi.push(score);
+            else scoresTX.push(score); // Nếu không trúng ai thì về đội TX
         });
 
         const avgCat = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
@@ -390,19 +394,19 @@ export default function ClassManager() {
     const renderScorePills = (tests: GradingResult[], category: "tx" | "15p" | "45p" | "thi") => {
         const matchingTests = tests.filter(t => {
             const r = rubrics.find(rub => rub.id === t.testId);
-            // Kết hợp cả Tên Đề Thi và Loại Bài Thi để tăng độ chính xác
+            // Gộp cả tiêu đề (title) và kiểu (examType) để quét từ khóa
             const targetText = ((r?.title || "") + " " + (r?.examType || "")).toLowerCase();
 
-            if (category === "15p") return ["15 phút", "15p"].some(k => targetText.includes(k));
-            if (category === "45p") return ["45 phút", "45p", "1 tiết", "1t", "định kỳ", "giữa kỳ"].some(k => targetText.includes(k));
-            if (category === "thi") return ["thi học kỳ", "thi hk", "điểm thi", "thi", "cuối kỳ"].some(k => targetText.includes(k));
+            const is15p = ["15 phút", "15p"].some(k => targetText.includes(k));
+            const is45p = ["45 phút", "45p", "1 tiết", "1t", "định kỳ", "giữa kỳ"].some(k => targetText.includes(k));
+            const isThi = ["thi học kỳ", "thi hk", "điểm thi", "thi", "cuối kỳ"].some(k => targetText.includes(k));
+
+            if (category === "15p") return is15p;
+            if (category === "45p") return is45p;
+            if (category === "thi") return isThi;
 
             if (category === "tx") {
-                const is15p = ["15 phút", "15p"].some(k => targetText.includes(k));
-                const is45p = ["45 phút", "45p", "1 tiết", "1t", "định kỳ", "giữa kỳ"].some(k => targetText.includes(k));
-                const isThi = ["thi học kỳ", "thi hk", "điểm thi", "thi", "cuối kỳ"].some(k => targetText.includes(k));
-
-                // Nếu không thuộc 3 loại kia thì chắc chắn là điểm Thường Xuyên
+                // Nếu không chứa các từ khóa trên, mặc định là điểm TX (Thường xuyên)
                 return !is15p && !is45p && !isThi;
             }
 
