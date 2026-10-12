@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
-// --- KHUÔN MẪU (BỌC LÓT CẢ PASCAL CASE VÀ CAMEL CASE) ---
+// --- KHUÔN MẪU BỌC LÓT TYPESCRIPT CHUẨN ---
 interface GradingDetail {
     questionNumber?: number; QuestionNumber?: number;
     awardedScore?: number; AwardedScore?: number;
@@ -23,13 +23,17 @@ interface GradingDetail {
     finalScore?: number; FinalScore?: number;
     isTeacherModified?: boolean; IsTeacherModified?: boolean;
 }
+
 interface Student {
     id?: string; Id?: string;
     studentCode: string; StudentCode?: string;
     fullName: string; FullName?: string;
     className: string; ClassName?: string;
-    extraAttributes?: any; // <-- THÊM DÒNG NÀY 
-}interface GradingResult {
+    extraAttributes?: Record<string, unknown>; // Khai báo chuẩn TypeScript để Vercel không báo lỗi Build
+    ExtraAttributes?: Record<string, unknown>;
+}
+
+interface GradingResult {
     id?: string; Id?: string;
     testId?: string; TestId?: string;
     studentName?: string; StudentName?: string;
@@ -39,6 +43,7 @@ interface Student {
     paperImageUrl?: string; PaperImageUrl?: string;
     gradingDetails?: GradingDetail[]; GradingDetails?: GradingDetail[];
 }
+
 interface Rubric { id?: string; Id?: string; title?: string; Title?: string; examType?: string; ExamType?: string; }
 
 export default function ClassManager() {
@@ -98,7 +103,6 @@ export default function ClassManager() {
             ])
             setStudents(Array.isArray(stuRes.data) ? stuRes.data : [])
 
-            // Xử lý an toàn mảng JSON trả về
             const rawHistory = histRes.data;
             let parsedHistory = [];
             if (Array.isArray(rawHistory)) parsedHistory = rawHistory;
@@ -143,14 +147,21 @@ export default function ClassManager() {
         );
     }
 
+    // --- HÀM TÌM ĐIỂM THÔNG MINH (Bất chấp hoa thường) ---
+    const getExtraScore = (student: Student, targetKey: string) => {
+        const extra = student.extraAttributes || student.ExtraAttributes;
+        if (!extra) return null;
+
+        // Tìm key không phân biệt hoa thường để tránh lỗi đánh máy từ C#
+        const foundKey = Object.keys(extra).find(k => k.toLowerCase().trim() === targetKey.toLowerCase().trim());
+        return foundKey ? Number(extra[foundKey]) : null;
+    }
+
     const getStudentStats = (studentCode: string) => {
         const tests = gradingHistory.filter(h => {
             const code = h.studentCode || h.StudentCode || "";
             return code.toLowerCase().trim() === studentCode.toLowerCase().trim();
         });
-
-        // THÊM DÒNG NÀY ĐỂ DEBUG
-        console.log(`=== ĐIỂM CỦA HỌC SINH ${studentCode} ===`, tests);
 
         const totalTests = tests.length
 
@@ -162,9 +173,6 @@ export default function ClassManager() {
         tests.forEach(t => {
             const tId = t.testId || t.TestId;
             const r = rubrics.find(rub => (rub.id || rub.Id) === tId);
-
-            // THÊM DÒNG NÀY ĐỂ DEBUG
-            console.log(`Đề thi: ${tId}, Đã tìm thấy Rubric:`, r);
 
             const targetText = ((r?.title || r?.Title || "") + " " + (r?.examType || r?.ExamType || "")).toLowerCase();
             const score = t.totalScore ?? t.TotalScore ?? 0;
@@ -290,7 +298,6 @@ export default function ClassManager() {
 
             toast.success("✅ Đã cập nhật điểm số thành công!");
 
-            // Xử lý an toàn response trả về
             const updatedData = response.data.data || response.data.Data || response.data;
             if (updatedData) {
                 setActiveTestDetail(updatedData);
@@ -356,12 +363,12 @@ export default function ClassManager() {
                         "Mã Học Sinh": s.studentCode || s.StudentCode,
                         "Họ và Tên": s.fullName || s.FullName,
                         "Lớp": s.className || s.ClassName,
-                        "KT Thường Xuyên": getScoreByExamType(["Thường xuyên", "KTTX"]),
-                        "KT 15 Phút": getScoreByExamType(["15 phút", "15p"]),
-                        "KT 1 Tiết": getScoreByExamType(["45 phút", "45p", "1 tiết", "1t", "Định kỳ"]),
-                        "Điểm Thi": getScoreByExamType(["Thi học kỳ", "Thi HK", "Điểm thi", "Thi"]),
-                        "Điểm TB Môn": stats.avgScore,
-                        "Ghi Chú": stats.totalTests > 0 ? `Đã làm ${stats.totalTests} bài` : "Chưa nộp bài"
+                        "KT Thường Xuyên": getScoreByExamType(["Thường xuyên", "KTTX"]) || getExtraScore(s, 'Điểm TX'),
+                        "KT 15 Phút": getScoreByExamType(["15 phút", "15p"]) || getExtraScore(s, 'Điểm 15p'),
+                        "KT 1 Tiết": getScoreByExamType(["45 phút", "45p", "1 tiết", "1t", "Định kỳ"]) || getExtraScore(s, 'Điểm 45p'),
+                        "Điểm Thi": getScoreByExamType(["Thi học kỳ", "Thi HK", "Điểm thi", "Thi"]) || getExtraScore(s, 'Điểm Thi'),
+                        "Điểm TB Môn": getExtraScore(s, 'Điểm Thi') || stats.avgScore,
+                        "Ghi Chú": stats.totalTests > 0 ? `Đã làm ${stats.totalTests} bài` : "Dữ liệu cũ"
                     }
                 })
 
@@ -579,6 +586,12 @@ export default function ClassManager() {
                                 const stats = getStudentStats(stCode)
                                 const stt = (currentPage - 1) * itemsPerPage + index + 1;
 
+                                // Lấy trực tiếp điểm từ JSON cũ thông qua hàm an toàn
+                                const extTX = getExtraScore(student, "Điểm TX") || getExtraScore(student, "Điểm Thường Xuyên");
+                                const ext15 = getExtraScore(student, "Điểm 15p") || getExtraScore(student, "Điểm 15 Phút");
+                                const ext45 = getExtraScore(student, "Điểm 45p") || getExtraScore(student, "Điểm 1 Tiết");
+                                const extThi = getExtraScore(student, "Điểm Thi");
+
                                 return (
                                     <TableRow key={stId || index} className="hover:bg-white/80 transition-all duration-200 border-b border-slate-100/60 last:border-0">
                                         <TableCell className="pl-6">
@@ -602,35 +615,35 @@ export default function ClassManager() {
 
                                         {/* Cột Điểm TX */}
                                         <TableCell className="text-center border-l border-r border-slate-100/50 bg-indigo-50/10">
-                                            {student.extraAttributes?.['Điểm TX'] ? (
-                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{student.extraAttributes['Điểm TX']}</span>
+                                            {extTX !== null ? (
+                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{extTX}</span>
                                             ) : renderScorePills(stats.tests, "tx")}
                                         </TableCell>
 
                                         {/* Cột Điểm 15p */}
                                         <TableCell className="text-center border-r border-slate-100/50 bg-indigo-50/10">
-                                            {student.extraAttributes?.['Điểm 15p'] ? (
-                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{student.extraAttributes['Điểm 15p']}</span>
+                                            {ext15 !== null ? (
+                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{ext15}</span>
                                             ) : renderScorePills(stats.tests, "15p")}
                                         </TableCell>
 
                                         {/* Cột Điểm 45p */}
                                         <TableCell className="text-center border-r border-slate-100/50 bg-indigo-50/10">
-                                            {student.extraAttributes?.['Điểm 45p'] ? (
-                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{student.extraAttributes['Điểm 45p']}</span>
+                                            {ext45 !== null ? (
+                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{ext45}</span>
                                             ) : renderScorePills(stats.tests, "45p")}
                                         </TableCell>
 
                                         {/* Cột Điểm Thi */}
                                         <TableCell className="text-center border-r border-slate-100/50 bg-rose-50/10">
-                                            {student.extraAttributes?.['Điểm Thi'] ? (
-                                                <span className="bg-white/90 text-rose-700 border border-rose-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{student.extraAttributes['Điểm Thi']}</span>
+                                            {extThi !== null ? (
+                                                <span className="bg-white/90 text-rose-700 border border-rose-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{extThi}</span>
                                             ) : renderScorePills(stats.tests, "thi")}
                                         </TableCell>
 
                                         {/* Cột Điểm TB */}
                                         <TableCell className="text-center font-black text-emerald-600 text-xl bg-slate-100/30 backdrop-blur-sm">
-                                            {student.extraAttributes?.['Điểm Thi'] ? student.extraAttributes['Điểm Thi'] : stats.avgScore}
+                                            {extThi !== null ? extThi : stats.avgScore}
                                         </TableCell>
 
                                         <TableCell className="text-right space-x-1 pr-6 whitespace-nowrap">
