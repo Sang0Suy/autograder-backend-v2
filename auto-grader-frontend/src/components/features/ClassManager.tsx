@@ -23,8 +23,13 @@ interface GradingDetail {
     finalScore?: number; FinalScore?: number;
     isTeacherModified?: boolean; IsTeacherModified?: boolean;
 }
-interface Student { id?: string; Id?: string; studentCode: string; StudentCode?: string; fullName: string; FullName?: string; className: string; ClassName?: string; }
-interface GradingResult {
+interface Student {
+    id?: string; Id?: string;
+    studentCode: string; StudentCode?: string;
+    fullName: string; FullName?: string;
+    className: string; ClassName?: string;
+    extraAttributes?: any; // <-- THÊM DÒNG NÀY 
+}interface GradingResult {
     id?: string; Id?: string;
     testId?: string; TestId?: string;
     studentName?: string; StudentName?: string;
@@ -595,12 +600,38 @@ export default function ClassManager() {
                                             <span className="bg-slate-100/80 px-3 py-1.5 rounded-lg text-sm font-bold border border-slate-200/60 shadow-sm text-slate-600">{stClass}</span>
                                         </TableCell>
 
-                                        <TableCell className="text-center border-l border-r border-slate-100/50 bg-indigo-50/10">{renderScorePills(stats.tests, "tx")}</TableCell>
-                                        <TableCell className="text-center border-r border-slate-100/50 bg-indigo-50/10">{renderScorePills(stats.tests, "15p")}</TableCell>
-                                        <TableCell className="text-center border-r border-slate-100/50 bg-indigo-50/10">{renderScorePills(stats.tests, "45p")}</TableCell>
-                                        <TableCell className="text-center border-r border-slate-100/50 bg-rose-50/10">{renderScorePills(stats.tests, "thi")}</TableCell>
+                                        {/* Cột Điểm TX */}
+                                        <TableCell className="text-center border-l border-r border-slate-100/50 bg-indigo-50/10">
+                                            {student.extraAttributes?.['Điểm TX'] ? (
+                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{student.extraAttributes['Điểm TX']}</span>
+                                            ) : renderScorePills(stats.tests, "tx")}
+                                        </TableCell>
 
-                                        <TableCell className="text-center font-black text-emerald-600 text-xl bg-slate-100/30 backdrop-blur-sm">{stats.avgScore}</TableCell>
+                                        {/* Cột Điểm 15p */}
+                                        <TableCell className="text-center border-r border-slate-100/50 bg-indigo-50/10">
+                                            {student.extraAttributes?.['Điểm 15p'] ? (
+                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{student.extraAttributes['Điểm 15p']}</span>
+                                            ) : renderScorePills(stats.tests, "15p")}
+                                        </TableCell>
+
+                                        {/* Cột Điểm 45p */}
+                                        <TableCell className="text-center border-r border-slate-100/50 bg-indigo-50/10">
+                                            {student.extraAttributes?.['Điểm 45p'] ? (
+                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{student.extraAttributes['Điểm 45p']}</span>
+                                            ) : renderScorePills(stats.tests, "45p")}
+                                        </TableCell>
+
+                                        {/* Cột Điểm Thi */}
+                                        <TableCell className="text-center border-r border-slate-100/50 bg-rose-50/10">
+                                            {student.extraAttributes?.['Điểm Thi'] ? (
+                                                <span className="bg-white/90 text-rose-700 border border-rose-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{student.extraAttributes['Điểm Thi']}</span>
+                                            ) : renderScorePills(stats.tests, "thi")}
+                                        </TableCell>
+
+                                        {/* Cột Điểm TB */}
+                                        <TableCell className="text-center font-black text-emerald-600 text-xl bg-slate-100/30 backdrop-blur-sm">
+                                            {student.extraAttributes?.['Điểm Thi'] ? student.extraAttributes['Điểm Thi'] : stats.avgScore}
+                                        </TableCell>
 
                                         <TableCell className="text-right space-x-1 pr-6 whitespace-nowrap">
                                             <Button variant="ghost" size="icon" className="rounded-full text-blue-600 hover:bg-blue-100 font-bold transition-colors w-10 h-10" title="Chi tiết bài làm" onClick={() => setViewHistoryStudent(student)}>
