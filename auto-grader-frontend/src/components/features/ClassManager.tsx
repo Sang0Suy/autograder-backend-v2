@@ -14,31 +14,29 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
-// --- KHUÔN MẪU ---
+// --- KHUÔN MẪU (BỌC LÓT CẢ PASCAL CASE VÀ CAMEL CASE) ---
 interface GradingDetail {
-    questionNumber: number;
-    awardedScore: number;
-    aiFeedback: string;
-    teacherCorrection?: string;
-    finalScore?: number;
-    isTeacherModified?: boolean;
+    questionNumber?: number; QuestionNumber?: number;
+    awardedScore?: number; AwardedScore?: number;
+    aiFeedback?: string; AIFeedback?: string;
+    teacherCorrection?: string; TeacherCorrection?: string;
+    finalScore?: number; FinalScore?: number;
+    isTeacherModified?: boolean; IsTeacherModified?: boolean;
 }
-interface Student { id?: string; studentCode: string; fullName: string; className: string; }
+interface Student { id?: string; Id?: string; studentCode: string; StudentCode?: string; fullName: string; FullName?: string; className: string; ClassName?: string; }
 interface GradingResult {
-    id?: string;
-    testId?: string;
-    studentName?: string;
-    studentCode?: string;
-    totalScore?: number;
-    gradedAt?: string;
-    paperImageUrl?: string;
-    PaperImageUrl?: string;
-    gradingDetails?: GradingDetail[];
+    id?: string; Id?: string;
+    testId?: string; TestId?: string;
+    studentName?: string; StudentName?: string;
+    studentCode?: string; StudentCode?: string;
+    totalScore?: number; TotalScore?: number;
+    gradedAt?: string; GradedAt?: string;
+    paperImageUrl?: string; PaperImageUrl?: string;
+    gradingDetails?: GradingDetail[]; GradingDetails?: GradingDetail[];
 }
-interface Rubric { id: string; title: string; examType: string; }
+interface Rubric { id?: string; Id?: string; title?: string; Title?: string; examType?: string; ExamType?: string; }
 
 export default function ClassManager() {
-    // === STATE ===
     const [students, setStudents] = useState<Student[]>([])
     const [gradingHistory, setGradingHistory] = useState<GradingResult[]>([])
     const [isLoading, setIsLoading] = useState(true)
@@ -54,19 +52,16 @@ export default function ClassManager() {
     const [newStudent, setNewStudent] = useState({ studentCode: '', fullName: '', className: '' })
     const [searchTerm, setSearchTerm] = useState("")
 
-    // 🔥 STATE PHÂN TRANG & MULTI-SELECT
     const [currentPage, setCurrentPage] = useState(1)
     const itemsPerPage = 10
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
     const [isDeletingBulk, setIsDeletingBulk] = useState(false)
 
-    // 🔥 STATE SỬA ĐIỂM CHI TIẾT
     const [editingQuestion, setEditingQuestion] = useState<number | null>(null);
     const [editScore, setEditScore] = useState<number>(0);
     const [editFeedback, setEditFeedback] = useState<string>('');
     const [isSavingScore, setIsSavingScore] = useState(false);
 
-    // 🔥 STATE CẤU HÌNH HỆ SỐ ĐIỂM 
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
     const [weights, setWeights] = useState(() => {
         const savedWeights = localStorage.getItem('gradeWeights');
@@ -88,8 +83,6 @@ export default function ClassManager() {
         return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     }
 
-    // === FETCH DỮ LIỆU ===
-    // === FETCH DỮ LIỆU ===
     const fetchData = async () => {
         try {
             setIsLoading(true)
@@ -100,20 +93,14 @@ export default function ClassManager() {
             ])
             setStudents(Array.isArray(stuRes.data) ? stuRes.data : [])
 
-            // Bọc lót mọi trường hợp JSON trả về từ Backend để không bị mất dữ liệu
+            // Xử lý an toàn mảng JSON trả về
             const rawHistory = histRes.data;
             let parsedHistory = [];
-            if (Array.isArray(rawHistory)) {
-                parsedHistory = rawHistory; // Nếu là mảng phẳng: [ {}, {} ]
-            } else if (rawHistory?.data && Array.isArray(rawHistory.data)) {
-                parsedHistory = rawHistory.data; // Nếu bọc trong data: { data: [] }
-            } else if (rawHistory?.Data && Array.isArray(rawHistory.Data)) {
-                parsedHistory = rawHistory.Data; // Nếu bọc trong Data (C# hay dùng)
-            } else if (rawHistory?.items && Array.isArray(rawHistory.items)) {
-                parsedHistory = rawHistory.items;
-            }
-            setGradingHistory(parsedHistory);
+            if (Array.isArray(rawHistory)) parsedHistory = rawHistory;
+            else if (rawHistory?.data && Array.isArray(rawHistory.data)) parsedHistory = rawHistory.data;
+            else if (rawHistory?.Data && Array.isArray(rawHistory.Data)) parsedHistory = rawHistory.Data;
 
+            setGradingHistory(parsedHistory)
             setRubrics(Array.isArray(rubRes.data) ? rubRes.data : [])
             setSelectedStudentIds([])
         } catch (error) {
@@ -126,39 +113,40 @@ export default function ClassManager() {
 
     const getRubricTitle = (testId: string | undefined) => {
         if (!testId) return "Không rõ mã đề"
-        const found = rubrics.find(r => r.id === testId)
-        return found ? found.title : "Đề thi đã bị xóa"
+        const found = rubrics.find(r => (r.id || r.Id) === testId)
+        return found ? (found.title || found.Title || "Không rõ") : "Đề thi đã bị xóa"
     }
 
     useEffect(() => {
-        const initData = setTimeout(() => {
-            fetchData();
-        }, 0);
-
+        const initData = setTimeout(() => { fetchData(); }, 0);
         return () => clearTimeout(initData);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // === TÍNH TOÁN DỮ LIỆU HIỂN THỊ ===
-    const classList = ["Tất cả", ...Array.from(new Set(students.map(s => s.className))).filter(c => c)]
+    const classList = ["Tất cả", ...Array.from(new Set(students.map(s => s.className || s.ClassName))).filter(c => c)] as string[];
     let displayStudents = students;
 
-    // Chỉ lọc theo lớp do Giáo viên chọn, xóa bỏ logic lọc của Học sinh
     if (selectedClass !== "Tất cả") {
-        displayStudents = students.filter(s => s.className === selectedClass);
+        displayStudents = students.filter(s => (s.className || s.ClassName) === selectedClass);
     }
 
     if (searchTerm.trim()) {
         const searchLower = removeAccents(searchTerm);
         displayStudents = displayStudents.filter(s =>
-            removeAccents(s.fullName).includes(searchLower) ||
-            removeAccents(s.studentCode).includes(searchLower)
+            removeAccents(s.fullName || s.FullName || "").includes(searchLower) ||
+            removeAccents(s.studentCode || s.StudentCode || "").includes(searchLower)
         );
     }
 
-    // 🔥 TÍNH ĐIỂM TRUNG BÌNH THEO HỆ SỐ CẤU HÌNH
     const getStudentStats = (studentCode: string) => {
-        const tests = gradingHistory.filter(h => h.studentCode?.toLowerCase().trim() === studentCode.toLowerCase().trim())
+        const tests = gradingHistory.filter(h => {
+            const code = h.studentCode || h.StudentCode || "";
+            return code.toLowerCase().trim() === studentCode.toLowerCase().trim();
+        });
+
+        // THÊM DÒNG NÀY ĐỂ DEBUG
+        console.log(`=== ĐIỂM CỦA HỌC SINH ${studentCode} ===`, tests);
+
         const totalTests = tests.length
 
         const scoresTX: number[] = [];
@@ -167,10 +155,14 @@ export default function ClassManager() {
         const scoresThi: number[] = [];
 
         tests.forEach(t => {
-            const r = rubrics.find(rub => rub.id === t.testId);
-            // Gộp cả tiêu đề và kiểu để quét
-            const targetText = ((r?.title || "") + " " + (r?.examType || "")).toLowerCase();
-            const score = t.totalScore || 0;
+            const tId = t.testId || t.TestId;
+            const r = rubrics.find(rub => (rub.id || rub.Id) === tId);
+
+            // THÊM DÒNG NÀY ĐỂ DEBUG
+            console.log(`Đề thi: ${tId}, Đã tìm thấy Rubric:`, r);
+
+            const targetText = ((r?.title || r?.Title || "") + " " + (r?.examType || r?.ExamType || "")).toLowerCase();
+            const score = t.totalScore ?? t.TotalScore ?? 0;
 
             const is15p = ["15 phút", "15p"].some(k => targetText.includes(k));
             const is45p = ["45 phút", "45p", "1 tiết", "1t", "định kỳ", "giữa kỳ"].some(k => targetText.includes(k));
@@ -179,7 +171,7 @@ export default function ClassManager() {
             if (is15p) scores15p.push(score);
             else if (is45p) scores45p.push(score);
             else if (isThi) scoresThi.push(score);
-            else scoresTX.push(score); // Nếu không trúng ai thì về đội TX
+            else scoresTX.push(score);
         });
 
         const avgCat = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
@@ -202,11 +194,9 @@ export default function ClassManager() {
         return { totalTests, avgScore: finalAvgScore, tests }
     }
 
-    // Phân trang
     const totalPages = Math.ceil(displayStudents.length / itemsPerPage);
     const currentStudentsData = displayStudents.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    // --- CÁC HÀM XỬ LÝ CHỈ DÀNH CHO ADMIN/GIÁO VIÊN ---
     const handleAddManual = async () => {
         const cleanedCode = newStudent.studentCode.trim(); const cleanedName = newStudent.fullName.trim()
         if (!cleanedName) {
@@ -267,8 +257,8 @@ export default function ClassManager() {
             await axios.delete(`/api/Grading/${resultId}`);
             toast.success("Đã xóa bài kiểm tra thành công!");
 
-            setGradingHistory(prev => prev.filter(h => h.id !== resultId));
-            if (activeTestDetail?.id === resultId) setActiveTestDetail(null);
+            setGradingHistory(prev => prev.filter(h => (h.id || h.Id) !== resultId));
+            if ((activeTestDetail?.id || activeTestDetail?.Id) === resultId) setActiveTestDetail(null);
         } catch (error) {
             toast.error("Lỗi khi xóa bài kiểm tra!");
             console.error(error);
@@ -276,24 +266,30 @@ export default function ClassManager() {
     };
 
     const handleEditScoreClick = (detail: GradingDetail) => {
-        setEditingQuestion(detail.questionNumber);
-        setEditScore(detail.finalScore !== undefined ? detail.finalScore : detail.awardedScore);
-        setEditFeedback(detail.teacherCorrection || detail.aiFeedback);
+        setEditingQuestion(detail.questionNumber ?? detail.QuestionNumber ?? null);
+        setEditScore(detail.finalScore ?? detail.FinalScore ?? detail.awardedScore ?? detail.AwardedScore ?? 0);
+        setEditFeedback(detail.teacherCorrection ?? detail.TeacherCorrection ?? detail.aiFeedback ?? detail.AIFeedback ?? '');
     };
 
-    const handleSaveScoreCorrection = async (questionNumber: number) => {
-        if (!activeTestDetail?.id) return;
+    const handleSaveScoreCorrection = async (questionNumber: number | undefined) => {
+        const resultId = activeTestDetail?.id || activeTestDetail?.Id;
+        if (!resultId || questionNumber === undefined) return;
         setIsSavingScore(true);
         try {
             const config = { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } };
-            const response = await axios.put(`/api/Grading/${activeTestDetail.id}/correction`, {
+            const response = await axios.put(`/api/Grading/${resultId}/correction`, {
                 QuestionNumber: questionNumber,
                 NewScore: editScore,
                 TeacherCorrection: editFeedback
             }, config);
 
             toast.success("✅ Đã cập nhật điểm số thành công!");
-            setActiveTestDetail(response.data.data);
+
+            // Xử lý an toàn response trả về
+            const updatedData = response.data.data || response.data.Data || response.data;
+            if (updatedData) {
+                setActiveTestDetail(updatedData);
+            }
             fetchData();
             setEditingQuestion(null);
         } catch (error) {
@@ -308,15 +304,15 @@ export default function ClassManager() {
         if (students.length === 0) return toast.warning("Chưa có dữ liệu để xuất!")
         try {
             const workbook = XLSX.utils.book_new()
-            const distinctClasses = Array.from(new Set(students.map(s => s.className || "Chưa xếp lớp")))
+            const distinctClasses = Array.from(new Set(students.map(s => s.className || s.ClassName || "Chưa xếp lớp")))
 
             distinctClasses.forEach(clsName => {
-                const classStudents = students.filter(s => (s.className || "Chưa xếp lớp") === clsName)
+                const classStudents = students.filter(s => (s.className || s.ClassName || "Chưa xếp lớp") === clsName)
                 const dataToExport = classStudents.map((s, i) => ({
                     "STT": i + 1,
-                    "Mã Học Sinh": s.studentCode,
-                    "Họ và Tên": s.fullName,
-                    "Lớp": s.className
+                    "Mã Học Sinh": s.studentCode || s.StudentCode,
+                    "Họ và Tên": s.fullName || s.FullName,
+                    "Lớp": s.className || s.ClassName
                 }))
                 const worksheet = XLSX.utils.json_to_sheet(dataToExport)
                 worksheet['!cols'] = [{ wch: 5 }, { wch: 15 }, { wch: 25 }, { wch: 10 }]
@@ -335,26 +331,26 @@ export default function ClassManager() {
         if (students.length === 0) return toast.warning("Chưa có dữ liệu để xuất!")
         try {
             const workbook = XLSX.utils.book_new()
-            const distinctClasses = Array.from(new Set(students.map(s => s.className || "Chưa xếp lớp")))
+            const distinctClasses = Array.from(new Set(students.map(s => s.className || s.ClassName || "Chưa xếp lớp")))
 
             distinctClasses.forEach(clsName => {
-                const classStudents = students.filter(s => (s.className || "Chưa xếp lớp") === clsName)
+                const classStudents = students.filter(s => (s.className || s.ClassName || "Chưa xếp lớp") === clsName)
 
                 const dataToExport = classStudents.map((s, i) => {
-                    const stats = getStudentStats(s.studentCode)
+                    const stats = getStudentStats(s.studentCode || s.StudentCode || "")
                     const getScoreByExamType = (keywords: string[]) => {
                         const foundTests = stats.tests.filter(t => {
-                            const r = rubrics.find(rub => rub.id === t.testId)
-                            return keywords.some(k => (r?.examType || "").toLowerCase().includes(k.toLowerCase()))
+                            const r = rubrics.find(rub => (rub.id || rub.Id) === (t.testId || t.TestId))
+                            return keywords.some(k => (r?.examType || r?.ExamType || "").toLowerCase().includes(k.toLowerCase()))
                         })
-                        return foundTests.length > 0 ? foundTests.map(t => t.totalScore).join(", ") : ""
+                        return foundTests.length > 0 ? foundTests.map(t => t.totalScore ?? t.TotalScore).join(", ") : ""
                     };
 
                     return {
                         "STT": i + 1,
-                        "Mã Học Sinh": s.studentCode,
-                        "Họ và Tên": s.fullName,
-                        "Lớp": s.className,
+                        "Mã Học Sinh": s.studentCode || s.StudentCode,
+                        "Họ và Tên": s.fullName || s.FullName,
+                        "Lớp": s.className || s.ClassName,
                         "KT Thường Xuyên": getScoreByExamType(["Thường xuyên", "KTTX"]),
                         "KT 15 Phút": getScoreByExamType(["15 phút", "15p"]),
                         "KT 1 Tiết": getScoreByExamType(["45 phút", "45p", "1 tiết", "1t", "Định kỳ"]),
@@ -389,9 +385,9 @@ export default function ClassManager() {
                 const worksheet = workbook.Sheets[workbook.SheetNames[0]]
                 const rawData: Record<string, string | number>[] = XLSX.utils.sheet_to_json(worksheet)
                 const newStudents: Student[] = rawData.map((row) => ({
-                    studentCode: String(row["Mã Học Sinh"] || row["studentCode"] || "").trim(),
-                    fullName: String(row["Họ và Tên"] || row["fullName"] || "").trim(),
-                    className: String(row["Lớp"] || row["className"] || "Chưa xếp lớp").trim()
+                    studentCode: String(row["Mã Học Sinh"] || row["studentCode"] || row["StudentCode"] || "").trim(),
+                    fullName: String(row["Họ và Tên"] || row["fullName"] || row["FullName"] || "").trim(),
+                    className: String(row["Lớp"] || row["className"] || row["ClassName"] || "Chưa xếp lớp").trim()
                 })).filter(s => s.fullName !== "" && s.studentCode !== "")
 
                 if (newStudents.length === 0) return toast.warning("Không tìm thấy dữ liệu hợp lệ!")
@@ -408,9 +404,9 @@ export default function ClassManager() {
 
     const renderScorePills = (tests: GradingResult[], category: "tx" | "15p" | "45p" | "thi") => {
         const matchingTests = tests.filter(t => {
-            const r = rubrics.find(rub => rub.id === t.testId);
-            // Gộp cả tiêu đề (title) và kiểu (examType) để quét từ khóa
-            const targetText = ((r?.title || "") + " " + (r?.examType || "")).toLowerCase();
+            const tId = t.testId || t.TestId;
+            const r = rubrics.find(rub => (rub.id || rub.Id) === tId);
+            const targetText = ((r?.title || r?.Title || "") + " " + (r?.examType || r?.ExamType || "")).toLowerCase();
 
             const is15p = ["15 phút", "15p"].some(k => targetText.includes(k));
             const is45p = ["45 phút", "45p", "1 tiết", "1t", "định kỳ", "giữa kỳ"].some(k => targetText.includes(k));
@@ -421,10 +417,8 @@ export default function ClassManager() {
             if (category === "thi") return isThi;
 
             if (category === "tx") {
-                // Nếu không chứa các từ khóa trên, mặc định là điểm TX (Thường xuyên)
                 return !is15p && !is45p && !isThi;
             }
-
             return false;
         });
 
@@ -432,15 +426,20 @@ export default function ClassManager() {
 
         return (
             <div className="flex flex-wrap gap-1.5 justify-center items-center max-w-[120px] mx-auto">
-                {matchingTests.map((t, idx) => (
-                    <span
-                        key={idx}
-                        className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm cursor-default"
-                        title={`Đề thi: ${getRubricTitle(t.testId)} - Ngày chấm: ${t.gradedAt ? new Date(t.gradedAt).toLocaleDateString('vi-VN') : 'N/A'}`}
-                    >
-                        {t.totalScore}
-                    </span>
-                ))}
+                {matchingTests.map((t, idx) => {
+                    const tId = t.testId || t.TestId;
+                    const date = t.gradedAt || t.GradedAt;
+                    const score = t.totalScore ?? t.TotalScore;
+                    return (
+                        <span
+                            key={idx}
+                            className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm cursor-default"
+                            title={`Đề thi: ${getRubricTitle(tId)} - Ngày chấm: ${date ? new Date(date).toLocaleDateString('vi-VN') : 'N/A'}`}
+                        >
+                            {score}
+                        </span>
+                    )
+                })}
             </div>
         );
     }
@@ -468,10 +467,9 @@ export default function ClassManager() {
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-700 p-2 md:p-4 relative min-h-screen">
-
             <div className="fixed inset-0 -z-20 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50 via-slate-50 to-indigo-50/50 pointer-events-none"></div>
 
-            {/* 🔥 HEADER */}
+            {/* HEADER */}
             <div className="bg-white/70 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
                 <div>
                     <h2 className="text-3xl font-black text-slate-800 flex items-center tracking-tight">
@@ -500,7 +498,7 @@ export default function ClassManager() {
                 </div>
             </div>
 
-            {/* 🔥 FILTER & MULTI-SELECT BAR */}
+            {/* FILTER & MULTI-SELECT BAR */}
             <div className="bg-white/70 backdrop-blur-xl p-4 rounded-[2rem] border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col lg:flex-row items-start lg:items-center gap-4">
                 <div className="relative w-full lg:w-[450px]">
                     <Search className="absolute left-5 top-3.5 h-5 w-5 text-slate-400" />
@@ -526,7 +524,6 @@ export default function ClassManager() {
                     ))}
                 </div>
 
-                {/* NÚT XÓA NHIỀU */}
                 {selectedStudentIds.length > 0 && (
                     <Button onClick={handleBulkDelete} disabled={isDeletingBulk} className="bg-red-500 hover:bg-red-600 text-white rounded-full font-bold px-6 h-12 shadow-sm transition-all ml-auto w-full lg:w-auto">
                         {isDeletingBulk ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
@@ -535,7 +532,7 @@ export default function ClassManager() {
                 )}
             </div>
 
-            {/* 🔥 MAIN TABLE */}
+            {/* MAIN TABLE */}
             <div className="bg-white/70 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 overflow-hidden flex flex-col">
                 <div className="overflow-x-auto">
                     <Table>
@@ -547,7 +544,7 @@ export default function ClassManager() {
                                         className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                         checked={currentStudentsData.length > 0 && selectedStudentIds.length === currentStudentsData.length}
                                         onChange={(e) => {
-                                            if (e.target.checked) setSelectedStudentIds(currentStudentsData.map(s => s.id!));
+                                            if (e.target.checked) setSelectedStudentIds(currentStudentsData.map(s => s.id || s.Id!));
                                             else setSelectedStudentIds([]);
                                         }}
                                     />
@@ -556,12 +553,10 @@ export default function ClassManager() {
                                 <TableHead className="font-bold text-slate-700 py-5">Mã Học Sinh</TableHead>
                                 <TableHead className="font-bold text-slate-700 py-5 min-w-[180px]">Họ và Tên</TableHead>
                                 <TableHead className="text-center font-bold text-slate-700 py-5">Lớp</TableHead>
-
                                 <TableHead className="text-center font-bold text-indigo-800 bg-indigo-50/40 border-l border-r border-indigo-100/50 py-5 min-w-[100px]">Điểm TX</TableHead>
                                 <TableHead className="text-center font-bold text-indigo-800 bg-indigo-50/40 border-r border-indigo-100/50 py-5 min-w-[100px]">Điểm 15p</TableHead>
                                 <TableHead className="text-center font-bold text-indigo-800 bg-indigo-50/40 border-r border-indigo-100/50 py-5 min-w-[100px]">Điểm 45p</TableHead>
                                 <TableHead className="text-center font-bold text-rose-800 bg-rose-50/40 border-r border-rose-100/50 py-5 min-w-[100px]">Điểm Thi</TableHead>
-
                                 <TableHead className="text-center font-black text-slate-800 py-5 bg-slate-200/30">Điểm TB</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700 pr-8 py-5 min-w-[120px]">Hành Động</TableHead>
                             </TableRow>
@@ -572,27 +567,32 @@ export default function ClassManager() {
                             ) : currentStudentsData.length === 0 ? (
                                 <TableRow><TableCell colSpan={11} className="h-48 text-center text-slate-500 font-medium text-base">Không tìm thấy học sinh nào.</TableCell></TableRow>
                             ) : currentStudentsData.map((student, index) => {
-                                const stats = getStudentStats(student.studentCode)
+                                const stId = student.id || student.Id;
+                                const stCode = student.studentCode || student.StudentCode || "";
+                                const stName = student.fullName || student.FullName || "";
+                                const stClass = student.className || student.ClassName || "";
+                                const stats = getStudentStats(stCode)
                                 const stt = (currentPage - 1) * itemsPerPage + index + 1;
 
                                 return (
-                                    <TableRow key={student.id || index} className="hover:bg-white/80 transition-all duration-200 border-b border-slate-100/60 last:border-0">
+                                    <TableRow key={stId || index} className="hover:bg-white/80 transition-all duration-200 border-b border-slate-100/60 last:border-0">
                                         <TableCell className="pl-6">
                                             <input
                                                 type="checkbox"
                                                 className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                                checked={selectedStudentIds.includes(student.id!)}
+                                                checked={stId ? selectedStudentIds.includes(stId) : false}
                                                 onChange={(e) => {
-                                                    if (e.target.checked) setSelectedStudentIds(prev => [...prev, student.id!]);
-                                                    else setSelectedStudentIds(prev => prev.filter(id => id !== student.id));
+                                                    if (!stId) return;
+                                                    if (e.target.checked) setSelectedStudentIds(prev => [...prev, stId]);
+                                                    else setSelectedStudentIds(prev => prev.filter(id => id !== stId));
                                                 }}
                                             />
                                         </TableCell>
                                         <TableCell className="font-medium text-slate-600 pl-4">{stt}</TableCell>
-                                        <TableCell className="font-mono text-sm text-slate-500">{student.studentCode}</TableCell>
-                                        <TableCell className="font-bold text-base whitespace-nowrap text-slate-800">{student.fullName}</TableCell>
+                                        <TableCell className="font-mono text-sm text-slate-500">{stCode}</TableCell>
+                                        <TableCell className="font-bold text-base whitespace-nowrap text-slate-800">{stName}</TableCell>
                                         <TableCell className="text-center">
-                                            <span className="bg-slate-100/80 px-3 py-1.5 rounded-lg text-sm font-bold border border-slate-200/60 shadow-sm text-slate-600">{student.className}</span>
+                                            <span className="bg-slate-100/80 px-3 py-1.5 rounded-lg text-sm font-bold border border-slate-200/60 shadow-sm text-slate-600">{stClass}</span>
                                         </TableCell>
 
                                         <TableCell className="text-center border-l border-r border-slate-100/50 bg-indigo-50/10">{renderScorePills(stats.tests, "tx")}</TableCell>
@@ -615,11 +615,11 @@ export default function ClassManager() {
                                                 <AlertDialogContent className="bg-white border-none rounded-3xl shadow-2xl">
                                                     <AlertDialogHeader>
                                                         <AlertDialogTitle className="text-red-600 text-xl font-bold">Xóa học sinh khỏi lớp?</AlertDialogTitle>
-                                                        <AlertDialogDescription className="text-base text-slate-600 mt-2">Xóa vĩnh viễn học sinh <span className="font-bold text-slate-800">{student.fullName}</span> khỏi hệ thống.</AlertDialogDescription>
+                                                        <AlertDialogDescription className="text-base text-slate-600 mt-2">Xóa vĩnh viễn học sinh <span className="font-bold text-slate-800">{stName}</span> khỏi hệ thống.</AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter className="mt-4">
                                                         <AlertDialogCancel className="rounded-full font-bold px-6 border-slate-300">Hủy</AlertDialogCancel>
-                                                        <AlertDialogAction className="bg-red-600 hover:bg-red-700 text-white rounded-full font-bold px-8 shadow-md" onClick={() => handleDeleteStudent(student.id!)}>Xác nhận xóa</AlertDialogAction>
+                                                        <AlertDialogAction className="bg-red-600 hover:bg-red-700 text-white rounded-full font-bold px-8 shadow-md" onClick={() => handleDeleteStudent(stId!)}>Xác nhận xóa</AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
@@ -631,7 +631,6 @@ export default function ClassManager() {
                     </Table>
                 </div>
 
-                {/* 🔥 GIAO DIỆN CHUYỂN TRANG */}
                 {displayStudents.length > 0 && (
                     <div className="flex flex-col sm:flex-row items-center justify-between px-8 py-5 bg-slate-50/30 border-t border-slate-200/60 gap-4 backdrop-blur-md">
                         <div className="text-sm text-slate-500 font-medium text-center sm:text-left">
@@ -654,13 +653,13 @@ export default function ClassManager() {
                     <DialogHeader className="p-6 md:p-8 pb-5 bg-white/80 border-b border-slate-200/60 sticky top-3 z-40 backdrop-blur-md">
                         <DialogTitle className="text-3xl font-black flex items-center text-slate-800 tracking-tight">
                             <BookOpen className="w-8 h-8 mr-4 text-indigo-600 bg-indigo-50 p-1.5 rounded-full" />
-                            Lịch sử làm bài: <span className="text-indigo-600 ml-2">{viewHistoryStudent?.fullName}</span>
+                            Lịch sử làm bài: <span className="text-indigo-600 ml-2">{viewHistoryStudent?.fullName || viewHistoryStudent?.FullName}</span>
                         </DialogTitle>
                     </DialogHeader>
 
                     <div className="p-6 md:p-8 overflow-y-auto max-h-[75vh]">
                         {!activeTestDetail ? (
-                            viewHistoryStudent && getStudentStats(viewHistoryStudent.studentCode).totalTests === 0 ? (
+                            viewHistoryStudent && getStudentStats(viewHistoryStudent.studentCode || viewHistoryStudent.StudentCode || "").totalTests === 0 ? (
                                 <div className="text-center bg-white/60 border border-dashed border-slate-300 rounded-3xl py-20 shadow-sm backdrop-blur-sm">
                                     <p className="text-slate-500 font-medium text-lg">Học sinh này chưa thực hiện bài kiểm tra nào.</p>
                                 </div>
@@ -676,24 +675,29 @@ export default function ClassManager() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {viewHistoryStudent && getStudentStats(viewHistoryStudent.studentCode).tests.map((test: GradingResult, i: number) => (
-                                                <TableRow key={i} className="hover:bg-white transition-colors border-b border-slate-100/60 last:border-0 group cursor-pointer" onClick={() => setActiveTestDetail(test)} title="Nhấn vào để xem chi tiết">
-                                                    <TableCell className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors py-5 pl-8 max-w-[400px] truncate text-base">
-                                                        {getRubricTitle(test.testId)}
-                                                    </TableCell>
-                                                    <TableCell className="text-center text-slate-500 font-medium px-6 whitespace-nowrap">
-                                                        <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200/60 text-xs shadow-sm">{test.gradedAt ? new Date(test.gradedAt).toLocaleString('vi-VN') : "-"}</span>
-                                                    </TableCell>
-                                                    <TableCell className="text-right pr-10 whitespace-nowrap">
-                                                        <span className="font-black text-indigo-600 text-2xl bg-indigo-50/50 px-4 py-1.5 rounded-xl border border-indigo-100/60 shadow-sm">{test.totalScore} đ</span>
-                                                    </TableCell>
-                                                    <TableCell className="text-right pr-4">
-                                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors rounded-full" title="Hủy bài kiểm tra này" onClick={(e) => handleDeleteTestResult(test.id!, e)}>
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </Button>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
+                                            {viewHistoryStudent && getStudentStats(viewHistoryStudent.studentCode || viewHistoryStudent.StudentCode || "").tests.map((test: GradingResult, i: number) => {
+                                                const tId = test.testId || test.TestId;
+                                                const date = test.gradedAt || test.GradedAt;
+                                                const score = test.totalScore ?? test.TotalScore;
+                                                return (
+                                                    <TableRow key={i} className="hover:bg-white transition-colors border-b border-slate-100/60 last:border-0 group cursor-pointer" onClick={() => setActiveTestDetail(test)} title="Nhấn vào để xem chi tiết">
+                                                        <TableCell className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors py-5 pl-8 max-w-[400px] truncate text-base">
+                                                            {getRubricTitle(tId)}
+                                                        </TableCell>
+                                                        <TableCell className="text-center text-slate-500 font-medium px-6 whitespace-nowrap">
+                                                            <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200/60 text-xs shadow-sm">{date ? new Date(date).toLocaleString('vi-VN') : "-"}</span>
+                                                        </TableCell>
+                                                        <TableCell className="text-right pr-10 whitespace-nowrap">
+                                                            <span className="font-black text-indigo-600 text-2xl bg-indigo-50/50 px-4 py-1.5 rounded-xl border border-indigo-100/60 shadow-sm">{score} đ</span>
+                                                        </TableCell>
+                                                        <TableCell className="text-right pr-4">
+                                                            <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors rounded-full" title="Hủy bài kiểm tra này" onClick={(e) => handleDeleteTestResult(test.id || test.Id || "", e)}>
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )
+                                            })}
                                         </TableBody>
                                     </Table>
                                 </div>
@@ -705,7 +709,7 @@ export default function ClassManager() {
                                         <button className="text-sm font-bold text-slate-400 hover:text-indigo-600 transition-colors mb-2 flex items-center bg-white px-3 py-1 rounded-full border border-slate-100 hover:bg-indigo-50 hover:border-indigo-100 shadow-sm" onClick={() => setActiveTestDetail(null)}>
                                             <ChevronLeft className="w-4 h-4 mr-1" /> Quay lại danh sách
                                         </button>
-                                        <h4 className="font-black text-slate-800 text-2xl tracking-tight">{getRubricTitle(activeTestDetail.testId)}</h4>
+                                        <h4 className="font-black text-slate-800 text-2xl tracking-tight">{getRubricTitle(activeTestDetail.testId || activeTestDetail.TestId)}</h4>
                                         {((activeTestDetail?.paperImageUrl && activeTestDetail.paperImageUrl.match(/\.(doc|docx|txt|pdf|rar|zip)\$/i)) ||
                                             (activeTestDetail?.PaperImageUrl && activeTestDetail.PaperImageUrl.match(/\.(doc|docx|txt|pdf|rar|zip)\$/i))) && (
                                                 <div className="mt-4 mb-2">
@@ -713,7 +717,7 @@ export default function ClassManager() {
                                                         Bài làm được nộp dưới dạng Tệp tin đính kèm.
                                                     </p>
                                                     <button
-                                                        onClick={() => downloadFileWithCustomName(activeTestDetail.paperImageUrl || activeTestDetail.PaperImageUrl || "", viewHistoryStudent?.fullName || "Học_Sinh")}
+                                                        onClick={() => downloadFileWithCustomName(activeTestDetail.paperImageUrl || activeTestDetail.PaperImageUrl || "", viewHistoryStudent?.fullName || viewHistoryStudent?.FullName || "Học_Sinh")}
                                                         className="inline-flex items-center px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-sm font-bold transition-colors border border-indigo-200 shadow-sm"
                                                     >
                                                         <Download className="w-4 h-4 mr-2" />
@@ -723,36 +727,43 @@ export default function ClassManager() {
                                             )}
                                     </div>
                                     <div className="bg-gradient-to-br from-indigo-600 to-blue-600 text-white px-8 py-4 rounded-2xl shadow-lg flex flex-col items-center justify-center min-w-[140px]">
-                                        <span className="font-black text-4xl leading-none">{activeTestDetail.totalScore}</span>
+                                        <span className="font-black text-4xl leading-none">{activeTestDetail.totalScore ?? activeTestDetail.TotalScore}</span>
                                         <span className="text-sm font-bold opacity-80 mt-1 uppercase tracking-wider">Điểm số</span>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-4">
-                                    {activeTestDetail.gradingDetails && activeTestDetail.gradingDetails.length > 0 ? (
-                                        activeTestDetail.gradingDetails.map((detail: GradingDetail, idx: number) => {
-                                            const isCorrect = detail.awardedScore > 0;
-                                            const isEditing = editingQuestion === detail.questionNumber;
-                                            const displayScore = detail.finalScore !== undefined ? detail.finalScore : detail.awardedScore;
+                                    {(activeTestDetail.gradingDetails || activeTestDetail.GradingDetails) && (activeTestDetail.gradingDetails || activeTestDetail.GradingDetails)!.length > 0 ? (
+                                        (activeTestDetail.gradingDetails || activeTestDetail.GradingDetails)!.map((detail: GradingDetail, idx: number) => {
+                                            const qNum = detail.questionNumber ?? detail.QuestionNumber ?? (idx + 1);
+                                            const aScore = detail.awardedScore ?? detail.AwardedScore ?? 0;
+                                            const fScore = detail.finalScore ?? detail.FinalScore;
+                                            const aiFeed = detail.aiFeedback ?? detail.AIFeedback;
+                                            const tCorrect = detail.teacherCorrection ?? detail.TeacherCorrection;
+                                            const isMod = detail.isTeacherModified ?? detail.IsTeacherModified;
+
+                                            const isCorrect = aScore > 0;
+                                            const isEditing = editingQuestion === qNum;
+                                            const displayScore = fScore !== undefined ? fScore : aScore;
 
                                             return (
-                                                <div key={idx} className={`bg-white/80 backdrop-blur-sm p-5 rounded-2xl border flex flex-col shadow-sm transition-all hover:shadow-md ${isCorrect ? 'border-emerald-200' : 'border-red-200'} ${detail.isTeacherModified ? 'ring-2 ring-indigo-300' : ''}`}>
+                                                <div key={idx} className={`bg-white/80 backdrop-blur-sm p-5 rounded-2xl border flex flex-col shadow-sm transition-all hover:shadow-md ${isCorrect ? 'border-emerald-200' : 'border-red-200'} ${isMod ? 'ring-2 ring-indigo-300' : ''}`}>
 
                                                     <div className="flex flex-col md:flex-row gap-5 justify-between items-start md:items-center w-full">
                                                         <div className="flex-1 space-y-3 w-full">
                                                             <div className="flex items-center gap-3">
                                                                 <span className={`font-bold text-xs px-3 py-1.5 rounded-lg border uppercase tracking-wider ${isCorrect ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                                                                    Câu số {detail.questionNumber || idx + 1}
+                                                                    Câu số {qNum}
                                                                 </span>
-                                                                {detail.isTeacherModified && <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full border border-indigo-200">Đã sửa</span>}
+                                                                {isMod && <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full border border-indigo-200">Đã sửa</span>}
                                                             </div>
                                                             <p className="text-base text-slate-700 font-medium leading-relaxed">
                                                                 <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded mr-2 text-xs border border-slate-200 uppercase">AI Nhận xét:</span>
-                                                                {detail.aiFeedback || "Chính xác, không có sai sót."}
+                                                                {aiFeed || "Chính xác, không có sai sót."}
                                                             </p>
-                                                            {detail.teacherCorrection && (
+                                                            {tCorrect && (
                                                                 <p className="text-sm text-blue-800 font-medium bg-blue-50/50 p-3 rounded-xl border border-blue-200 shadow-inner">
-                                                                    <span className="font-black mr-2 uppercase tracking-wide">Giáo viên chữa:</span> {detail.teacherCorrection}
+                                                                    <span className="font-black mr-2 uppercase tracking-wide">Giáo viên chữa:</span> {tCorrect}
                                                                 </p>
                                                             )}
                                                         </div>
@@ -783,7 +794,7 @@ export default function ClassManager() {
                                                             </div>
                                                             <div className="flex justify-end gap-2">
                                                                 <Button variant="ghost" onClick={() => setEditingQuestion(null)} className="rounded-xl font-bold bg-slate-100 hover:bg-slate-200 text-slate-600">Hủy</Button>
-                                                                <Button onClick={() => handleSaveScoreCorrection(detail.questionNumber)} disabled={isSavingScore} className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md">
+                                                                <Button onClick={() => handleSaveScoreCorrection(qNum)} disabled={isSavingScore} className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md">
                                                                     {isSavingScore ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Lưu & Cập nhật
                                                                 </Button>
                                                             </div>
@@ -815,7 +826,6 @@ export default function ClassManager() {
                         <p className="text-sm text-slate-500 font-medium mb-4 leading-relaxed">
                             Nhập hệ số nhân cho từng cột điểm. Hệ thống sẽ tự động tính lại Điểm Trung Bình của toàn bộ học sinh.
                         </p>
-
                         <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
                             <Label className="font-bold text-slate-700">Điểm Thường Xuyên</Label>
                             <Input type="number" min="0" step="0.5" className="w-20 text-center font-bold bg-white" value={weights.tx} onChange={(e) => setWeights({ ...weights, tx: parseFloat(e.target.value) || 0 })} />
