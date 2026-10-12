@@ -89,6 +89,7 @@ export default function ClassManager() {
     }
 
     // === FETCH DỮ LIỆU ===
+    // === FETCH DỮ LIỆU ===
     const fetchData = async () => {
         try {
             setIsLoading(true)
@@ -98,7 +99,21 @@ export default function ClassManager() {
                 axios.get('/api/Rubrics')
             ])
             setStudents(Array.isArray(stuRes.data) ? stuRes.data : [])
-            setGradingHistory(histRes.data?.Data || histRes.data?.data || [])
+
+            // Bọc lót mọi trường hợp JSON trả về từ Backend để không bị mất dữ liệu
+            const rawHistory = histRes.data;
+            let parsedHistory = [];
+            if (Array.isArray(rawHistory)) {
+                parsedHistory = rawHistory; // Nếu là mảng phẳng: [ {}, {} ]
+            } else if (rawHistory?.data && Array.isArray(rawHistory.data)) {
+                parsedHistory = rawHistory.data; // Nếu bọc trong data: { data: [] }
+            } else if (rawHistory?.Data && Array.isArray(rawHistory.Data)) {
+                parsedHistory = rawHistory.Data; // Nếu bọc trong Data (C# hay dùng)
+            } else if (rawHistory?.items && Array.isArray(rawHistory.items)) {
+                parsedHistory = rawHistory.items;
+            }
+            setGradingHistory(parsedHistory);
+
             setRubrics(Array.isArray(rubRes.data) ? rubRes.data : [])
             setSelectedStudentIds([])
         } catch (error) {

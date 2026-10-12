@@ -146,7 +146,7 @@ namespace AutoGrader.Infrastructure.Services
                     ""StudentName"": ""Họ tên"",
                     ""TotalScore"": 10.0,
                     ""OverallFeedback"": ""Nhận xét tổng quan..."",
-                    ""Details"": [
+                    ""GradingDetails"": [
                         {{
                             ""QuestionNumber"": 1,
                             ""AwardedScore"": 1.0,
