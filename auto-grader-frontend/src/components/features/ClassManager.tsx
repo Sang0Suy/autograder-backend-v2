@@ -857,7 +857,7 @@ export default function ClassManager() {
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL CẤU HÌNH HỆ SỐ ĐIỂM */}
+            {/* MODAL CẤU HÌNH HỆ SỐ ĐIỂM*/}
             <Dialog open={isConfigModalOpen} onOpenChange={setIsConfigModalOpen}>
                 <DialogContent className="sm:max-w-[400px] bg-white/95 backdrop-blur-xl z-50 rounded-[2rem] overflow-hidden p-0 border border-white shadow-2xl">
                     <div className="h-2 bg-gradient-to-r from-slate-700 to-slate-900 w-full absolute top-0 left-0"></div>
