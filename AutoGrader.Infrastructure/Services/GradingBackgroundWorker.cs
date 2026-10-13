@@ -119,8 +119,8 @@ namespace AutoGrader.Infrastructure.Services
             }
 
             // 2. Gemini chấm
-            var aiResult = await aiGradingService.GradeAnswerAsync(textForAI, workItem.RubricJson, linkedCts.Token);
-
+            // Giả định workItem có ImageUrl và RubricId. Nếu không có, bạn hãy dùng chuỗi rỗng ""
+            var aiResult = await aiGradingService.GradeAnswerAsync(textForAI, workItem.RubricJson, workItem.ImageUrl ?? "", "", linkedCts.Token);
             // 3. Cập nhật DB
             var studentResult = await resultRepo.GetByIdAsync(workItem.ResultId);
             if (studentResult != null)

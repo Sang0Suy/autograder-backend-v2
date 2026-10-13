@@ -86,9 +86,9 @@ namespace AutoGrader.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(studentAnswerText)) throw new Exception("Máy quét không nhận diện được chữ từ ảnh.");
 
             string rubricJson = JsonSerializer.Serialize(rubric);
-            var finalResult = await _aiGradingService.GradeAnswerAsync(studentAnswerText, rubricJson);
-
-            var imageUrl = await _imageUploadService.UploadImageAsync(request.ImageFile);
+            // Truyền chuỗi rỗng hoặc thuộc tính tương ứng từ biến request của bạn
+            // Sửa dòng 90 thành:
+            var finalResult = await _aiGradingService.GradeAnswerAsync(studentAnswerText, rubricJson, "", request.TestId ?? ""); var imageUrl = await _imageUploadService.UploadImageAsync(request.ImageFile);
 
             var studentResult = new StudentResult
             {

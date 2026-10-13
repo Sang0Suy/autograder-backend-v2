@@ -3,12 +3,14 @@
     // Báo cáo tổng thể bài thi
     public class AIGradingResult
     {
+        public double ConfidenceScore { get; set; }
         public string StudentCode { get; set; } = string.Empty;
         public string StudentName { get; set; } = string.Empty;
         public string Id { get; set; } = string.Empty;
         public double TotalScore { get; set; } // Tổng điểm AI chấm
         public string OverallFeedback { get; set; } = string.Empty; // Nhận xét chung toàn bài
         public List<GradingDetailDto> Details { get; set; } = new(); // Chi tiết điểm từng câu
+        public string StudyGuide { get; set; } = string.Empty;
     }
 
     // Chi tiết điểm của 1 câu hỏi cụ thể

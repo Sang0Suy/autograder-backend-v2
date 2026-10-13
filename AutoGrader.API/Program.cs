@@ -4,14 +4,15 @@ using AutoGrader.Domain.Entities;
 using AutoGrader.Infrastructure.Data;
 using AutoGrader.Infrastructure.Repositories;
 using AutoGrader.Infrastructure.Services;
+using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
 using Polly;
 using Polly.Extensions.Http;
 using System.Net;
-using System.Text;
 using System.Net.Http;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var jwtSettings = builder.Configuration.GetSection("Jwt");
@@ -71,7 +72,15 @@ builder.Services.AddAuthentication(options =>
         }
     };
 });
+// 1. Đăng ký Hangfire chạy trên RAM
+builder.Services.AddHangfire(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseInMemoryStorage());
 
+// 2. Kích hoạt Background Server để xử lý hàng đợi
+builder.Services.AddHangfireServer();
 // 🔥 1. Đăng ký HttpClient gọi Gemini và gắn giáp Polly vào
 builder.Services.AddHttpClient("GeminiClient", client =>
 {
@@ -132,7 +141,13 @@ builder.Services.AddSingleton<AutoGrader.Application.Interfaces.IGradingNotifica
 builder.Services.AddSingleton<ITaskCancellationManager, TaskCancellationManager>();
 builder.Services.AddScoped<IRepository<CorrectionRule>, MongoRepository<CorrectionRule>>();
 builder.Services.AddScoped<IFileExtractionService, FileExtractionService>();
-
+builder.Services.AddTransient<BatchGradingJob>();
+builder.Services.AddScoped<PlagiarismDetectionService>();
+// 🔥 1. Sửa lại đăng ký gửi thông báo qua Interface (Dependency Inversion chuẩn)
+builder.Services.AddHttpClient<IExpoNotificationService, ExpoNotificationService>();
+builder.Services.AddTransient<DeadlineReminderJob>();
+// 🔥 2. Đăng ký Job để Hangfire có thể tìm thấy và giao việc
+builder.Services.AddTransient<GradingJob>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -149,5 +164,17 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<AutoGrader.API.Hubs.GradingHub>("/gradingHub");
+app.UseHangfireDashboard("/hangfire");
+using (var scope = app.Services.CreateScope())
+{
+    var recurringJobManager = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
 
+    // Cú pháp Cron: "*/30 * * * *" nghĩa là chạy mỗi 30 phút. 
+    // Nếu muốn test nhanh mỗi 1 phút thì dùng: "* * * * *"
+    recurringJobManager.AddOrUpdate<AutoGrader.Application.Services.DeadlineReminderJob>(
+        "lazy-student-scanner",
+        job => job.ScanAndWarnLazyStudentsAsync(),
+        "*/30 * * * *"
+    );
+}
 app.Run();

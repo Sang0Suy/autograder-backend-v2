@@ -18,6 +18,8 @@ namespace AutoGrader.Domain.Entities
 
         [BsonElement("className")]
         public string ClassName { get; set; } = null!;
+        public string ClassId { get; set; }
+        public string? DeviceToken { get; set; } // Để Expo biết đường gửi thông báo tới điện thoại
 
         // 🔥 CHÌA KHÓA CÁCH LY DỮ LIỆU
         public string CreatedBy { get; set; } = string.Empty;

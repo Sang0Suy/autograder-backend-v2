@@ -2,7 +2,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import * as XLSX from 'xlsx'
-import { Loader2, Image as ImageIcon, Download, Search, ChevronLeft, ChevronRight, CheckCircle2, FileText, PlayCircle } from "lucide-react"
+import { Loader2, Image as ImageIcon, Download, Search, ChevronLeft, ChevronRight, CheckCircle2, FileText, PlayCircle, AlertTriangle, ShieldAlert } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { toast } from 'sonner'
 import GradingAnalytics from './GradingAnalytics';
@@ -10,7 +10,7 @@ import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import axios from "axios"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-// 🔥 ĐỊNH NGHĨA KIỂU DỮ LIỆU ĐỂ CHIỀU LÒNG TYPESCRIPT (KHÔNG DÙNG ANY)
+// 🔥 ĐỊNH NGHĨA KIỂU DỮ LIỆU
 interface GradingDetail {
     questionNumber?: number;
     QuestionNumber?: number;
@@ -31,6 +31,12 @@ interface StudentResult {
     gradedAt?: string; GradedAt?: string;
     gradingDetails?: GradingDetail[];
     GradingDetails?: GradingDetail[];
+
+    // 🔥 BỔ SUNG CÁC TRƯỜNG DỮ LIỆU TỪ AI (Phương án 3 & 5)
+    confidenceScore?: number; ConfidenceScore?: number;
+    needsManualReview?: boolean; NeedsManualReview?: boolean;
+    isPlagiarized?: boolean; IsPlagiarized?: boolean;
+    plagiarismNote?: string; PlagiarismNote?: string;
 }
 
 interface Rubric {
@@ -42,17 +48,12 @@ interface Rubric {
 export default function GradingHistory() {
     const [history, setHistory] = useState<StudentResult[]>([])
     const [isLoading, setIsLoading] = useState(true)
-
     const [selectedResult, setSelectedResult] = useState<StudentResult | null>(null)
-
     const [searchTerm, setSearchTerm] = useState("")
     const [rubrics, setRubrics] = useState<Rubric[]>([])
 
-    // Lấy thông tin quyền hiện tại
     const userRole = localStorage.getItem('role') || '';
     const myStudentCode = localStorage.getItem('ReferenceId') || '';
-
-    // STATE PHÂN TRANG VÀ TÌM KIẾM
     const [currentPage, setCurrentPage] = useState(1)
     const itemsPerPage = 10
 
@@ -70,7 +71,6 @@ export default function GradingHistory() {
                 ? response.data
                 : response.data?.Data || response.data?.data || response.data?.items || [];
 
-            // BẢO MẬT: Nếu là Học sinh, chỉ được xem bài của chính mình
             if (userRole === 'Student' && myStudentCode) {
                 actualArray = actualArray.filter((item: StudentResult) =>
                     (item.studentCode || item.StudentCode || "").toLowerCase() === myStudentCode.toLowerCase()
@@ -118,23 +118,18 @@ export default function GradingHistory() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [history, searchTerm, rubrics])
 
-    // TÍNH TOÁN PHÂN TRANG
     const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
     const currentHistoryData = filteredHistory.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     useEffect(() => {
-        // Đưa vào hàng đợi bất đồng bộ để Linter không bắt bẻ việc gọi setState
         const initData = setTimeout(() => {
             fetchHistory()
             fetchRubrics()
         }, 0);
-
-        // Dọn dẹp timeout nếu component bị hủy
         return () => clearTimeout(initData);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    // ANTEN THU SÓNG SIGNALR TỪ BACKEND
     useEffect(() => {
         const backendUrl = "https://autograder-backend-sang.onrender.com/gradingHub";
         const connection = new HubConnectionBuilder()
@@ -145,17 +140,14 @@ export default function GradingHistory() {
             .withAutomaticReconnect()
             .build();
 
-        // 🔥 THÊM CỜ THEO DÕI TRẠNG THÁI
         let isStarting = true;
 
         connection.start()
             .then(() => {
-                isStarting = false; // Đã khởi động xong
+                isStarting = false;
                 console.log("🟢 Đã kết nối mượt mà với Trạm phát sóng SignalR!");
-
                 connection.on("ReceiveGradingUpdate", () => {
                     toast.success("🤖 AI vừa cập nhật dữ liệu mới!", { icon: '✨' });
-                    // Nhớ gọi lại hàm fetch data của bạn ở đây (VD: fetchHistory() hoặc fetchStudents())
                 });
             })
             .catch(e => {
@@ -163,14 +155,11 @@ export default function GradingHistory() {
                 console.log("🔴 Lỗi kết nối SignalR: ", e);
             });
 
-        // Dọn dẹp kết nối khi rời khỏi trang
         return () => {
-            // 🔥 CHỈ STOP KHI ĐÃ START XONG, TRÁNH LỖI XUNG ĐỘT
             if (!isStarting) {
                 connection.stop();
             }
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const formatDate = (dateString?: string) => {
@@ -193,6 +182,8 @@ export default function GradingHistory() {
                 "Tên Học Sinh": item.studentName || item.StudentName || "Khách",
                 "Tên Đề Thi": getRubricTitle(item.testId || item.TestId || ""),
                 "Điểm Số": item.totalScore !== undefined ? item.totalScore : (item.TotalScore !== undefined ? item.TotalScore : 0),
+                "Độ Tin Cậy (%)": item.confidenceScore || item.ConfidenceScore || 100,
+                "Trạng Thái": item.isPlagiarized || item.IsPlagiarized ? "Đạo văn" : (item.needsManualReview || item.NeedsManualReview ? "Cần Duyệt Lại" : "Bình Thường"),
                 "Thời Gian Chấm": formatDate(item.gradedAt || item.GradedAt),
                 "Link Ảnh Bài Làm": item.paperImageUrl || item.PaperImageUrl || "Không có"
             }))
@@ -200,7 +191,7 @@ export default function GradingHistory() {
             const worksheet = XLSX.utils.json_to_sheet(dataToExport)
             const workbook = XLSX.utils.book_new()
             XLSX.utils.book_append_sheet(workbook, worksheet, "BangDiem")
-            worksheet['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 40 }, { wch: 10 }, { wch: 20 }, { wch: 50 }]
+            worksheet['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 40 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 50 }]
 
             XLSX.writeFile(workbook, "Bang_Diem_AutoGrader.xlsx")
             toast.success("Đã xuất file Excel thành công! 📊")
@@ -231,21 +222,17 @@ export default function GradingHistory() {
             window.URL.revokeObjectURL(url);
             toast.success("Tải file hoàn tất!");
         } catch {
-            // 🔥 ĐÃ FIX CẢNH BÁO ESLINT: Bỏ biến error không sử dụng
             window.open(fileUrl, '_blank');
         }
     };
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-700 p-2 md:p-4 relative min-h-screen">
-            {/* Hiệu ứng nền */}
             <div className="fixed inset-0 -z-20 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-50 via-slate-50 to-teal-50/50 pointer-events-none"></div>
             <div className="fixed top-[-10%] right-[-5%] w-[600px] h-[600px] bg-emerald-300/20 rounded-full blur-[120px] -z-10 pointer-events-none animate-pulse"></div>
             <div className="fixed bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-teal-400/20 rounded-full blur-[120px] -z-10 pointer-events-none animate-pulse delay-1000"></div>
 
-            {/* STICKY HEADER CHO TITLE & FILTER */}
             <div className="sticky top-2 md:top-4 z-40 space-y-4">
-                {/* HEADER CARD */}
                 <div className="bg-white/80 backdrop-blur-2xl p-6 md:p-8 rounded-[2rem] shadow-[0_10px_40px_rgb(0,0,0,0.06)] border border-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden transition-all">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-emerald-100 to-teal-50 rounded-full blur-3xl -z-10 opacity-70 translate-x-1/3 -translate-y-1/3"></div>
                     <div>
@@ -256,7 +243,6 @@ export default function GradingHistory() {
                     </div>
                 </div>
 
-                {/* BỘ LỌC VÀ TÌM KIẾM */}
                 <div className="bg-white/80 backdrop-blur-2xl p-4 rounded-[2rem] border border-white shadow-[0_10px_30px_rgb(0,0,0,0.04)] flex flex-col lg:flex-row items-center justify-between gap-4">
                     <div className="relative w-full lg:w-[450px]">
                         <Search className="absolute left-5 top-3.5 h-5 w-5 text-slate-400" />
@@ -287,7 +273,6 @@ export default function GradingHistory() {
 
             {filteredHistory.length > 0 && <GradingAnalytics results={filteredHistory} />}
 
-            {/* BẢNG DỮ LIỆU */}
             <div className="bg-white/70 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 overflow-hidden flex flex-col">
                 <div className="overflow-x-auto">
                     <Table>
@@ -295,7 +280,7 @@ export default function GradingHistory() {
                             <TableRow className="border-b border-slate-200/60">
                                 <TableHead className="w-[80px] font-bold text-slate-700 pl-8 py-5">STT</TableHead>
                                 <TableHead className="font-bold text-slate-700 py-5">Thời Gian Chấm</TableHead>
-                                <TableHead className="font-bold text-slate-700 py-5">Tên Học Sinh</TableHead>
+                                <TableHead className="font-bold text-slate-700 py-5 min-w-[200px]">Tên Học Sinh</TableHead>
                                 <TableHead className="font-bold text-slate-700 py-5 max-w-[250px]">Tên Đề Thi</TableHead>
                                 <TableHead className="text-center font-bold text-slate-700 py-5">Điểm Số</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700 pr-8 py-5">Xem Bài</TableHead>
@@ -313,7 +298,6 @@ export default function GradingHistory() {
                                     </TableCell>
                                 </TableRow>
                             ) : currentHistoryData.length === 0 ? (
-                                // TRẠNG THÁI TRỐNG HÀI HƯỚC DÀNH CHO HỌC SINH
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-72 text-center">
                                         <div className="flex flex-col items-center justify-center space-y-4 max-w-md mx-auto">
@@ -344,13 +328,31 @@ export default function GradingHistory() {
                                     const imgUrl = result.paperImageUrl || result.PaperImageUrl
                                     const stt = (currentPage - 1) * itemsPerPage + index + 1;
 
+                                    // Bắt các cờ cảnh báo từ AI
+                                    const isPlagiarized = result.isPlagiarized || result.IsPlagiarized;
+                                    const needsReview = result.needsManualReview || result.NeedsManualReview;
+                                    const confScore = result.confidenceScore || result.ConfidenceScore;
+
                                     return (
-                                        <TableRow key={displayId} className="hover:bg-white/80 transition-all duration-200 border-b border-slate-100/60 last:border-0">
+                                        <TableRow key={displayId} className={`transition-all duration-200 border-b border-slate-100/60 last:border-0 ${isPlagiarized ? 'bg-red-50/50 hover:bg-red-50' : needsReview ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-white/80'}`}>
                                             <TableCell className="font-medium text-slate-600 pl-8">{stt}</TableCell>
                                             <TableCell className="text-slate-500 text-sm">
                                                 <span className="bg-white/80 px-3 py-1.5 rounded-lg border border-slate-200/60 text-xs shadow-sm font-medium">{formatDate(date)}</span>
                                             </TableCell>
-                                            <TableCell className="font-bold text-slate-800 text-base">{name}</TableCell>
+                                            <TableCell>
+                                                <div className="font-bold text-slate-800 text-base">{name}</div>
+                                                {/* 🔥 HIỂN THỊ LABEL CẢNH BÁO */}
+                                                {isPlagiarized && (
+                                                    <div className="flex items-center mt-1 text-[11px] font-bold text-red-600 bg-red-100 border border-red-200 w-fit px-2 py-0.5 rounded-full shadow-sm">
+                                                        <ShieldAlert className="w-3 h-3 mr-1" /> Phát hiện đạo văn!
+                                                    </div>
+                                                )}
+                                                {!isPlagiarized && needsReview && (
+                                                    <div className="flex items-center mt-1 text-[11px] font-bold text-amber-700 bg-amber-100 border border-amber-200 w-fit px-2 py-0.5 rounded-full shadow-sm">
+                                                        <AlertTriangle className="w-3 h-3 mr-1" /> Cần duyệt lại ({confScore}%)
+                                                    </div>
+                                                )}
+                                            </TableCell>
                                             <TableCell
                                                 className="font-medium text-emerald-700 max-w-[250px] truncate"
                                                 title={getRubricTitle(testId)}
@@ -382,7 +384,6 @@ export default function GradingHistory() {
                     </Table>
                 </div>
 
-                {/* Chuyển trang */}
                 {filteredHistory.length > 0 && (
                     <div className="flex flex-col sm:flex-row items-center justify-between px-8 py-5 bg-slate-50/30 border-t border-slate-200/60 gap-4 backdrop-blur-md">
                         <div className="text-sm text-slate-500 font-medium text-center sm:text-left">
@@ -404,12 +405,30 @@ export default function GradingHistory() {
             {/* MODAL PHÓNG TO CHI TIẾT */}
             <Dialog open={!!selectedResult} onOpenChange={() => setSelectedResult(null)}>
                 <DialogContent className="!max-w-5xl !w-[95vw] bg-white/95 backdrop-blur-xl p-0 overflow-hidden border border-white/60 shadow-2xl rounded-3xl">
-                    <div className="h-3 bg-gradient-to-r from-emerald-500 to-teal-500 w-full"></div>
+                    <div className={`h-3 w-full ${selectedResult?.isPlagiarized || selectedResult?.IsPlagiarized ? 'bg-gradient-to-r from-red-500 to-rose-600' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}></div>
+
                     <DialogHeader className="p-6 md:p-8 pb-4 bg-white/80 border-b border-slate-200/60 backdrop-blur-md">
                         <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight flex items-center">
                             <CheckCircle2 className="w-7 h-7 mr-3 text-emerald-600" />
                             Chi Tiết Bài Làm - {(selectedResult?.studentName || selectedResult?.StudentName)}
                         </DialogTitle>
+
+                        {/* 🔥 HIỂN THỊ CẢNH BÁO CHI TIẾT TRONG MODAL */}
+                        {(selectedResult?.isPlagiarized || selectedResult?.IsPlagiarized) && (
+                            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start">
+                                <ShieldAlert className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
+                                <div>
+                                    <h4 className="text-red-800 font-bold text-sm">Cảnh báo Đạo văn!</h4>
+                                    <p className="text-red-600 text-xs mt-0.5">{selectedResult?.plagiarismNote || selectedResult?.PlagiarismNote}</p>
+                                </div>
+                            </div>
+                        )}
+                        {!(selectedResult?.isPlagiarized || selectedResult?.IsPlagiarized) && (selectedResult?.needsManualReview || selectedResult?.NeedsManualReview) && (
+                            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center">
+                                <AlertTriangle className="w-5 h-5 text-amber-600 mr-2" />
+                                <span className="text-amber-800 font-bold text-sm">AI chấm điểm với độ tin cậy thấp ({selectedResult?.confidenceScore || selectedResult?.ConfidenceScore}%). Vui lòng giáo viên duyệt lại!</span>
+                            </div>
+                        )}
                     </DialogHeader>
 
                     <div className="bg-slate-100/50 p-4 md:p-8 min-h-[400px] flex items-center justify-center">
@@ -417,7 +436,7 @@ export default function GradingHistory() {
                             const imageUrl = selectedResult.paperImageUrl || selectedResult.PaperImageUrl || "";
                             const isOnlineExam = imageUrl.includes("Thi Trực Tuyến");
                             const isWaiting = imageUrl.includes("(Đang chờ");
-                            const isDocument = imageUrl.toLowerCase().match(/\.(doc|docx|txt|pdf|rar|zip)$/) != null || imageUrl.includes("📄 File");
+                            const isDocument = imageUrl.toLowerCase().match(/\.(doc|docx|txt|pdf|rar|zip)\$/) != null || imageUrl.includes("📄 File");
 
                             if (isWaiting) {
                                 return (

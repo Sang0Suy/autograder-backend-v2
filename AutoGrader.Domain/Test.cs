@@ -16,6 +16,9 @@ namespace AutoGrader.Domain.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public List<string> RubricIds { get; set; } = new List<string>();
+        public int TotalStudents { get; set; }
+        public DateTime Deadline { get; set; }
+        public string ClassId { get; set; } = string.Empty; // Để biết bài Test này giao cho lớp nào
 
         // 🔥 CHÌA KHÓA CÁCH LY DỮ LIỆU
         public string CreatedBy { get; set; } = string.Empty;

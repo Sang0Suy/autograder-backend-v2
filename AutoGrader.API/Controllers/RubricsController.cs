@@ -16,10 +16,13 @@ namespace AutoGrader.API.Controllers
     public class RubricsController : ControllerBase
     {
         private readonly IRepository<Rubric> _rubricRepository;
-
-        public RubricsController(IRepository<Rubric> rubricRepository)
+        private readonly IAIGradingService _aiGradingService;
+        private readonly IRepository<Rubric> _rubricRepo;
+        public RubricsController(IRepository<Rubric> rubricRepository, IAIGradingService aiGradingService, IRepository<Rubric> rubricRepo)
         {
             _rubricRepository = rubricRepository;
+            _aiGradingService = aiGradingService;
+            _rubricRepo = rubricRepo;
         }
 
         [HttpGet]
@@ -106,5 +109,35 @@ namespace AutoGrader.API.Controllers
             await _rubricRepository.DeleteAsync(id);
             return Ok(new { message = "Đã xóa bộ barem thành công!" });
         }
+        // API Sinh Rubric tự động
+        [HttpPost("auto-generate")]
+        public async Task<IActionResult> AutoGenerateRubric([FromBody] GenerateRubricRequest request)
+        {
+            if (string.IsNullOrEmpty(request.AnswerKeyImageUrl))
+                return BadRequest("Vui lòng cung cấp link ảnh đáp án.");
+
+            // 1. Gọi AI bóc tách ảnh thành Rubric
+            var newRubric = await _aiGradingService.GenerateRubricFromImageAsync(request.AnswerKeyImageUrl);
+
+            if (newRubric == null)
+                return StatusCode(500, "AI không thể nhận diện được đáp án từ ảnh.");
+
+            // 2. Tùy chọn bổ sung dữ liệu (Ai tạo, tạo khi nào...)
+            newRubric.CreatedBy = request.TeacherId;
+
+            // 3. Lưu vào MongoDB
+            await _rubricRepo.CreateAsync(newRubric);
+
+            return Ok(new
+            {
+                message = "Đã tạo Barem điểm tự động thành công!",
+                data = newRubric
+            });
+        }
+    }
+    public class GenerateRubricRequest
+    {
+        public string AnswerKeyImageUrl { get; set; }
+        public string TeacherId { get; set; }
     }
 }

@@ -29,7 +29,7 @@ interface Student {
     studentCode: string; StudentCode?: string;
     fullName: string; FullName?: string;
     className: string; ClassName?: string;
-    extraAttributes?: Record<string, unknown>; // Khai báo chuẩn TypeScript để Vercel không báo lỗi Build
+    extraAttributes?: Record<string, unknown>;
     ExtraAttributes?: Record<string, unknown>;
 }
 
@@ -147,17 +147,16 @@ export default function ClassManager() {
         );
     }
 
-    // --- HÀM TÌM ĐIỂM THÔNG MINH (Bất chấp hoa thường) ---
+    // --- HÀM TÌM ĐIỂM THÔNG MINH ---
     const getExtraScore = (student: Student, targetKey: string) => {
         const extra = student.extraAttributes || student.ExtraAttributes;
         if (!extra) return null;
 
-        // Tìm key không phân biệt hoa thường để tránh lỗi đánh máy từ C#
         const foundKey = Object.keys(extra).find(k => k.toLowerCase().trim() === targetKey.toLowerCase().trim());
         return foundKey ? Number(extra[foundKey]) : null;
     }
 
-    const getStudentStats = (studentCode: string) => {
+    const getStudentStats = (studentCode: string, studentData: Student) => {
         const tests = gradingHistory.filter(h => {
             const code = h.studentCode || h.StudentCode || "";
             return code.toLowerCase().trim() === studentCode.toLowerCase().trim();
@@ -187,12 +186,24 @@ export default function ClassManager() {
             else scoresTX.push(score);
         });
 
+        // Lấy điểm từ extraAttributes
+        const extTX = getExtraScore(studentData, "Điểm TX") || getExtraScore(studentData, "Điểm Thường Xuyên");
+        const ext15 = getExtraScore(studentData, "Điểm 15p") || getExtraScore(studentData, "Điểm 15 Phút");
+        const ext45 = getExtraScore(studentData, "Điểm 45p") || getExtraScore(studentData, "Điểm 1 Tiết");
+        const extThi = getExtraScore(studentData, "Điểm Thi");
+
+        // Gộp điểm từ cả 2 nguồn (Tests và extraAttributes) để tính trung bình
+        const finalScoresTX = extTX !== null ? [...scoresTX, extTX] : scoresTX;
+        const finalScores15p = ext15 !== null ? [...scores15p, ext15] : scores15p;
+        const finalScores45p = ext45 !== null ? [...scores45p, ext45] : scores45p;
+        const finalScoresThi = extThi !== null ? [...scoresThi, extThi] : scoresThi;
+
         const avgCat = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
 
-        const avgTX = avgCat(scoresTX);
-        const avg15p = avgCat(scores15p);
-        const avg45p = avgCat(scores45p);
-        const avgThi = avgCat(scoresThi);
+        const avgTX = avgCat(finalScoresTX);
+        const avg15p = avgCat(finalScores15p);
+        const avg45p = avgCat(finalScores45p);
+        const avgThi = avgCat(finalScoresThi);
 
         let totalWeight = 0;
         let weightedScore = 0;
@@ -204,7 +215,12 @@ export default function ClassManager() {
 
         const finalAvgScore = totalWeight > 0 ? (weightedScore / totalWeight).toFixed(1) : "0.0";
 
-        return { totalTests, avgScore: finalAvgScore, tests, scoresTX, scores15p, scores45p, scoresThi }
+        return {
+            totalTests,
+            avgScore: finalAvgScore,
+            tests,
+            extTX, ext15, ext45, extThi
+        }
     }
 
     const totalPages = Math.ceil(displayStudents.length / itemsPerPage);
@@ -349,7 +365,7 @@ export default function ClassManager() {
                 const classStudents = students.filter(s => (s.className || s.ClassName || "Chưa xếp lớp") === clsName)
 
                 const dataToExport = classStudents.map((s, i) => {
-                    const stats = getStudentStats(s.studentCode || s.StudentCode || "")
+                    const stats = getStudentStats(s.studentCode || s.StudentCode || "", s)
                     const getScoreByExamType = (keywords: string[]) => {
                         const foundTests = stats.tests.filter(t => {
                             const r = rubrics.find(rub => (rub.id || rub.Id) === (t.testId || t.TestId))
@@ -363,11 +379,11 @@ export default function ClassManager() {
                         "Mã Học Sinh": s.studentCode || s.StudentCode,
                         "Họ và Tên": s.fullName || s.FullName,
                         "Lớp": s.className || s.ClassName,
-                        "KT Thường Xuyên": getScoreByExamType(["Thường xuyên", "KTTX"]) || getExtraScore(s, 'Điểm TX'),
-                        "KT 15 Phút": getScoreByExamType(["15 phút", "15p"]) || getExtraScore(s, 'Điểm 15p'),
-                        "KT 1 Tiết": getScoreByExamType(["45 phút", "45p", "1 tiết", "1t", "Định kỳ"]) || getExtraScore(s, 'Điểm 45p'),
-                        "Điểm Thi": getScoreByExamType(["Thi học kỳ", "Thi HK", "Điểm thi", "Thi"]) || getExtraScore(s, 'Điểm Thi'),
-                        "Điểm TB Môn": getExtraScore(s, 'Điểm Thi') || stats.avgScore,
+                        "KT Thường Xuyên": getScoreByExamType(["Thường xuyên", "KTTX"]) || stats.extTX,
+                        "KT 15 Phút": getScoreByExamType(["15 phút", "15p"]) || stats.ext15,
+                        "KT 1 Tiết": getScoreByExamType(["45 phút", "45p", "1 tiết", "1t", "Định kỳ"]) || stats.ext45,
+                        "Điểm Thi": getScoreByExamType(["Thi học kỳ", "Thi HK", "Điểm thi", "Thi"]) || stats.extThi,
+                        "Điểm TB Môn": stats.avgScore,
                         "Ghi Chú": stats.totalTests > 0 ? `Đã làm ${stats.totalTests} bài` : "Dữ liệu cũ"
                     }
                 })
@@ -434,7 +450,7 @@ export default function ClassManager() {
             return false;
         });
 
-        if (matchingTests.length === 0) return <span className="text-slate-300">-</span>;
+        if (matchingTests.length === 0) return null;
 
         return (
             <div className="flex flex-wrap gap-1.5 justify-center items-center max-w-[120px] mx-auto">
@@ -583,14 +599,14 @@ export default function ClassManager() {
                                 const stCode = student.studentCode || student.StudentCode || "";
                                 const stName = student.fullName || student.FullName || "";
                                 const stClass = student.className || student.ClassName || "";
-                                const stats = getStudentStats(stCode)
+                                const stats = getStudentStats(stCode, student);
                                 const stt = (currentPage - 1) * itemsPerPage + index + 1;
 
-                                // Lấy trực tiếp điểm từ JSON cũ thông qua hàm an toàn
-                                const extTX = getExtraScore(student, "Điểm TX") || getExtraScore(student, "Điểm Thường Xuyên");
-                                const ext15 = getExtraScore(student, "Điểm 15p") || getExtraScore(student, "Điểm 15 Phút");
-                                const ext45 = getExtraScore(student, "Điểm 45p") || getExtraScore(student, "Điểm 1 Tiết");
-                                const extThi = getExtraScore(student, "Điểm Thi");
+                                // Lấy điểm từ 2 nguồn và hợp nhất hiển thị
+                                const testsTX = renderScorePills(stats.tests, "tx");
+                                const tests15p = renderScorePills(stats.tests, "15p");
+                                const tests45p = renderScorePills(stats.tests, "45p");
+                                const testsThi = renderScorePills(stats.tests, "thi");
 
                                 return (
                                     <TableRow key={stId || index} className="hover:bg-white/80 transition-all duration-200 border-b border-slate-100/60 last:border-0">
@@ -615,68 +631,51 @@ export default function ClassManager() {
 
                                         {/* Cột Điểm TX */}
                                         <TableCell className="text-center border-l border-r border-slate-100/50 bg-indigo-50/10">
-                                            {extTX !== null ? (
-                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{extTX}</span>
-                                            ) : renderScorePills(stats.tests, "tx")}
+                                            <div className="flex flex-wrap gap-1.5 justify-center items-center">
+                                                {stats.extTX !== null && (
+                                                    <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{stats.extTX}</span>
+                                                )}
+                                                {testsTX}
+                                                {stats.extTX === null && !testsTX && <span className="text-slate-300">-</span>}
+                                            </div>
                                         </TableCell>
 
                                         {/* Cột Điểm 15p */}
                                         <TableCell className="text-center border-r border-slate-100/50 bg-indigo-50/10">
-                                            {ext15 !== null ? (
-                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{ext15}</span>
-                                            ) : renderScorePills(stats.tests, "15p")}
+                                            <div className="flex flex-wrap gap-1.5 justify-center items-center">
+                                                {stats.ext15 !== null && (
+                                                    <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{stats.ext15}</span>
+                                                )}
+                                                {tests15p}
+                                                {stats.ext15 === null && !tests15p && <span className="text-slate-300">-</span>}
+                                            </div>
                                         </TableCell>
 
                                         {/* Cột Điểm 45p */}
                                         <TableCell className="text-center border-r border-slate-100/50 bg-indigo-50/10">
-                                            {ext45 !== null ? (
-                                                <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{ext45}</span>
-                                            ) : renderScorePills(stats.tests, "45p")}
+                                            <div className="flex flex-wrap gap-1.5 justify-center items-center">
+                                                {stats.ext45 !== null && (
+                                                    <span className="bg-white/90 text-indigo-700 border border-indigo-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{stats.ext45}</span>
+                                                )}
+                                                {tests45p}
+                                                {stats.ext45 === null && !tests45p && <span className="text-slate-300">-</span>}
+                                            </div>
                                         </TableCell>
 
                                         {/* Cột Điểm Thi */}
                                         <TableCell className="text-center border-r border-slate-100/50 bg-rose-50/10">
-                                            {extThi !== null ? (
-                                                <span className="bg-white/90 text-rose-700 border border-rose-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{extThi}</span>
-                                            ) : renderScorePills(stats.tests, "thi")}
+                                            <div className="flex flex-wrap gap-1.5 justify-center items-center">
+                                                {stats.extThi !== null && (
+                                                    <span className="bg-white/90 text-rose-700 border border-rose-100/60 font-bold px-2.5 py-1 rounded-md text-xs shadow-sm">{stats.extThi}</span>
+                                                )}
+                                                {testsThi}
+                                                {stats.extThi === null && !testsThi && <span className="text-slate-300">-</span>}
+                                            </div>
                                         </TableCell>
 
                                         {/* Cột Điểm TB */}
                                         <TableCell className="text-center font-black text-emerald-600 text-xl bg-slate-100/30 backdrop-blur-sm">
-                                            {/* Cột Điểm TB */}
-                                            <TableCell className="text-center font-black text-emerald-600 text-xl bg-slate-100/30 backdrop-blur-sm">
-                                                {(() => {
-                                                    // Khôi phục mảng điểm để tính toán
-                                                    let arrTX = [...stats.scoresTX];
-                                                    let arr15p = [...stats.scores15p];
-                                                    let arr45p = [...stats.scores45p];
-                                                    let arrThi = [...stats.scoresThi];
-
-                                                    // Cộng dồn điểm cũ từ extraAttributes vào mảng tính toán (nếu có)
-                                                    if (extTX !== null) arrTX.push(extTX);
-                                                    if (ext15 !== null) arr15p.push(ext15);
-                                                    if (ext45 !== null) arr45p.push(ext45);
-                                                    if (extThi !== null) arrThi.push(extThi);
-
-                                                    // Tính trung bình từng cột
-                                                    const avgCat = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
-                                                    const avgTX = avgCat(arrTX);
-                                                    const avg15p = avgCat(arr15p);
-                                                    const avg45p = avgCat(arr45p);
-                                                    const avgThi = avgCat(arrThi);
-
-                                                    // Áp dụng hệ số tính điểm tổng quát
-                                                    let totalWeight = 0;
-                                                    let weightedScore = 0;
-                                                    if (avgTX !== null) { weightedScore += avgTX * weights.tx; totalWeight += weights.tx; }
-                                                    if (avg15p !== null) { weightedScore += avg15p * weights.p15; totalWeight += weights.p15; }
-                                                    if (avg45p !== null) { weightedScore += avg45p * weights.p45; totalWeight += weights.p45; }
-                                                    if (avgThi !== null) { weightedScore += avgThi * weights.thi; totalWeight += weights.thi; }
-
-                                                    const finalScore = totalWeight > 0 ? (weightedScore / totalWeight).toFixed(1) : "0.0";
-                                                    return finalScore;
-                                                })()}
-                                            </TableCell>
+                                            {stats.avgScore}
                                         </TableCell>
 
                                         <TableCell className="text-right space-x-1 pr-6 whitespace-nowrap">
@@ -736,7 +735,7 @@ export default function ClassManager() {
 
                     <div className="p-6 md:p-8 overflow-y-auto max-h-[75vh]">
                         {!activeTestDetail ? (
-                            viewHistoryStudent && getStudentStats(viewHistoryStudent.studentCode || viewHistoryStudent.StudentCode || "").totalTests === 0 ? (
+                            viewHistoryStudent && getStudentStats(viewHistoryStudent.studentCode || viewHistoryStudent.StudentCode || "", viewHistoryStudent).totalTests === 0 ? (
                                 <div className="text-center bg-white/60 border border-dashed border-slate-300 rounded-3xl py-20 shadow-sm backdrop-blur-sm">
                                     <p className="text-slate-500 font-medium text-lg">Học sinh này chưa thực hiện bài kiểm tra nào.</p>
                                 </div>
@@ -752,7 +751,7 @@ export default function ClassManager() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {viewHistoryStudent && getStudentStats(viewHistoryStudent.studentCode || viewHistoryStudent.StudentCode || "").tests.map((test: GradingResult, i: number) => {
+                                            {viewHistoryStudent && getStudentStats(viewHistoryStudent.studentCode || viewHistoryStudent.StudentCode || "", viewHistoryStudent).tests.map((test: GradingResult, i: number) => {
                                                 const tId = test.testId || test.TestId;
                                                 const date = test.gradedAt || test.GradedAt;
                                                 const score = test.totalScore ?? test.TotalScore;

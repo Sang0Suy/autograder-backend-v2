@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System; // Bắt buộc phải có dòng này cho Func
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 
@@ -12,5 +13,6 @@ namespace AutoGrader.Application.Interfaces
         Task UpdateAsync(string id, T entity);
         Task DeleteAsync(string id);
         Task<(IEnumerable<T> Data, long TotalCount)> GetPagedAsync(int page, int pageSize, Expression<Func<T, bool>> filter = null);
+        Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate);
     }
 }

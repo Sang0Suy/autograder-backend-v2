@@ -1,10 +1,11 @@
-﻿using AutoGrader.Application.Interfaces;
-using AutoGrader.Infrastructure.Data;
-using Microsoft.Extensions.Options;
-using MongoDB.Driver;
+﻿using System; // Bắt buộc phải có dòng này cho Func
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using AutoGrader.Application.Interfaces;
+using AutoGrader.Infrastructure.Data;
+using Microsoft.Extensions.Options;
+using MongoDB.Driver;
 
 namespace AutoGrader.Infrastructure.Repositories
 {
@@ -45,21 +46,22 @@ namespace AutoGrader.Infrastructure.Repositories
             var filter = Builders<T>.Filter.Eq("Id", id);
             await _collection.DeleteOneAsync(filter);
         }
+
         public async Task<(IEnumerable<T> Data, long TotalCount)> GetPagedAsync(int page, int pageSize, Expression<Func<T, bool>> filter = null)
         {
-            // 1. Tạo điều kiện lọc (Nếu không truyền gì thì lấy tất cả)
             var filterDefinition = filter != null ? Builders<T>.Filter.Where(filter) : Builders<T>.Filter.Empty;
-
-            // 2. Đếm tổng số bản ghi thỏa mãn điều kiện (để Frontend biết có bao nhiêu trang)
             var totalCount = await _collection.CountDocumentsAsync(filterDefinition);
-
-            // 3. Bỏ qua các bản ghi cũ (Skip) và lấy số lượng giới hạn (Limit)
             var data = await _collection.Find(filterDefinition)
                                         .Skip((page - 1) * pageSize)
                                         .Limit(pageSize)
                                         .ToListAsync();
 
             return (data, totalCount);
+        }
+
+        public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate)
+        {
+            return await _collection.Find(predicate).ToListAsync();
         }
     }
 }

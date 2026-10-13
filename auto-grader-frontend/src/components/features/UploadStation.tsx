@@ -566,6 +566,11 @@ export default function UploadStation() {
             setTotalToGrade(successfulUploads);
             setCompletedGrading(0);
             toast.success(`Đã đẩy ${successfulUploads} bài vào hàng đợi AI!`);
+
+            // THÊM 3 DÒNG NÀY ĐỂ TỰ ĐỘNG RESET Ô ĐỊNH DANH VỀ AI CHO LẦN SAU
+            if (!isStudent) {
+                setSelectedStudentCode("AUTO");
+            }
         }
     }
 

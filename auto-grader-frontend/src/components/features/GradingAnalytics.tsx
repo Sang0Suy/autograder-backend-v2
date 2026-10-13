@@ -1,6 +1,6 @@
 ﻿import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Trophy, TrendingUp, Users, AlertTriangle } from 'lucide-react';
+import { Trophy, TrendingUp, Users, ShieldAlert } from 'lucide-react';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface AnalyticsProps {
@@ -19,6 +19,12 @@ export default function GradingAnalytics({ results }: AnalyticsProps) {
         const passed = validScores.filter(s => s >= 5).length;
         const passRate = (passed / total) * 100;
 
+        // 🔥 ĐẾM SỐ BÀI THI BỊ AI CẮM CỜ (Đạo văn hoặc cần duyệt tay)
+        const flaggedCount = results.filter(r =>
+            r.isPlagiarized === true || r.IsPlagiarized === true ||
+            r.needsManualReview === true || r.NeedsManualReview === true
+        ).length;
+
         // Phân loại phổ điểm cho Bar Chart
         const distribution = [
             { name: '0 - 3.9', count: validScores.filter(s => s < 4).length },
@@ -34,7 +40,7 @@ export default function GradingAnalytics({ results }: AnalyticsProps) {
             { name: 'Chưa Đạt (< 5)', value: total - passed },
         ];
 
-        return { total, average: average.toFixed(2), passRate: passRate.toFixed(1), distribution, pieData };
+        return { total, average: average.toFixed(2), passRate: passRate.toFixed(1), distribution, pieData, flaggedCount };
     }, [results]);
 
     if (!stats) return null;
@@ -69,11 +75,14 @@ export default function GradingAnalytics({ results }: AnalyticsProps) {
                     </div>
                 </div>
 
-                <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 flex items-center gap-4">
-                    <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl shadow-inner"><AlertTriangle className="w-8 h-8" /></div>
+                {/* 🔥 WIDGET MỚI: THEO DÕI CẢNH BÁO TỪ AI */}
+                <div className={`bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 flex items-center gap-4 ${stats.flaggedCount > 0 ? 'ring-2 ring-red-200' : ''}`}>
+                    <div className={`p-4 rounded-2xl shadow-inner ${stats.flaggedCount > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-400'}`}>
+                        <ShieldAlert className="w-8 h-8" />
+                    </div>
                     <div>
-                        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Cần chú ý</p>
-                        <p className="text-3xl font-black text-slate-800">{stats.pieData[1].value} HS</p>
+                        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Cảnh Báo AI</p>
+                        <p className={`text-3xl font-black ${stats.flaggedCount > 0 ? 'text-red-600' : 'text-slate-800'}`}>{stats.flaggedCount} Bài</p>
                     </div>
                 </div>
             </div>

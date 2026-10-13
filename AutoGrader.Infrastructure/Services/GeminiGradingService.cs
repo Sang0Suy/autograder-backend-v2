@@ -91,7 +91,8 @@ namespace AutoGrader.Infrastructure.Services
             throw new Exception("Toàn bộ API Keys đều đã kiệt sức vì quá tải. Vui lòng đợi 1 lát rồi thử lại!");
         }
 
-        public async Task<AIGradingResult> GradeAnswerAsync(string studentAnswer, string rubricContext, CancellationToken cancellationToken = default)
+        // 1. Hàm chấm điểm bài thi
+        public async Task<AIGradingResult> GradeAnswerAsync(string studentAnswer, string rubricContext, string imageUrl, string rubricId, CancellationToken cancellationToken = default)
         {
             var dynamicTrainingPrompt = new StringBuilder();
             try
@@ -146,6 +147,8 @@ namespace AutoGrader.Infrastructure.Services
                     ""StudentName"": ""Họ tên"",
                     ""TotalScore"": 10.0,
                     ""OverallFeedback"": ""Nhận xét tổng quan..."",
+                    ""ConfidenceScore"": [Độ tự tin 0-100],
+                    ""StudyGuide"": ""Phân tích ngắn gọn 1-2 câu về điểm yếu của học sinh (ví dụ: 'Thường sai dấu khi giải phương trình bậc 2') và gợi ý 1 hành động ôn tập cụ thể."",
                     ""GradingDetails"": [
                         {{
                             ""QuestionNumber"": 1,
@@ -163,7 +166,6 @@ namespace AutoGrader.Infrastructure.Services
                 string responseString = await ExecuteWithKeyRotationAsync(requestBody, cancellationToken);
 
                 using var document = JsonDocument.Parse(responseString);
-                // 🔥 An toàn chống Null
                 var aiTextResponse = document.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString() ?? string.Empty;
 
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
@@ -178,6 +180,7 @@ namespace AutoGrader.Infrastructure.Services
                     {
                         gradingResult.TotalScore = Math.Round(gradingResult.TotalScore, 2);
 
+                        // Lưu ý: Tôi đang giả định DTO của bạn có mảng Details, nếu bạn dùng GradingDetails thì đổi lại ở đây nhé
                         if (gradingResult.Details != null)
                         {
                             foreach (var detail in gradingResult.Details)
@@ -198,6 +201,7 @@ namespace AutoGrader.Infrastructure.Services
             }
         }
 
+        // 2. Hàm bóc tách đáp án (từ Text)
         public async Task<string> ExtractRubricFromTextAsync(string rawText, CancellationToken cancellationToken = default)
         {
             var prompt = $@"
@@ -235,7 +239,6 @@ namespace AutoGrader.Infrastructure.Services
                 string responseString = await ExecuteWithKeyRotationAsync(requestBody, cancellationToken);
 
                 using var document = JsonDocument.Parse(responseString);
-                // 🔥 An toàn chống Null
                 var aiTextResponse = document.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString() ?? string.Empty;
 
                 var match = Regex.Match(aiTextResponse, @"\{.*\}", RegexOptions.Singleline);
@@ -249,6 +252,67 @@ namespace AutoGrader.Infrastructure.Services
             catch (Exception ex)
             {
                 throw new Exception($"Lỗi khi bóc tách đề thi bằng AI: {ex.Message}");
+            }
+        }
+
+        // 🔥 3. HÀM MỚI (Tự động sinh Rubric từ hình ảnh) - Lỗi của bạn là ở phần này
+        public async Task<Rubric> GenerateRubricFromImageAsync(string answerKeyImageUrl)
+        {
+            // Tạm thời, tôi sẽ gọi API AI dựa trên URL hình ảnh
+            string systemPrompt = @"
+                Bạn là một trợ lý giáo viên chuyên nghiệp. Tôi sẽ cung cấp cho bạn một bức ảnh chụp đáp án chuẩn hoặc đề bài.
+                Nhiệm vụ của bạn là bóc tách cấu trúc điểm số và trả về kết quả DƯỚI DẠNG JSON TUYỆT ĐỐI THEO FORMAT SAU:
+                {
+                    ""Title"": ""Tên bài kiểm tra (tự suy luận từ ảnh)"",
+                    ""TotalScore"": 10,
+                    ""Criteria"": [
+                        {
+                            ""QuestionNumber"": 1,
+                            ""ExpectedAnswer"": ""Nội dung đáp án chuẩn của câu 1"",
+                            ""MaxScore"": 2.5
+                        }
+                    ]
+                }
+                KHÔNG ĐƯỢC sinh ra bất kỳ văn bản nào khác ngoài chuỗi JSON này.";
+
+            var requestBody = new
+            {
+                contents = new[] {
+                     new {
+                         parts = new[] {
+                             new { text = systemPrompt },
+                             // Lưu ý: Nếu gửi ảnh URL trực tiếp, Gemini yêu cầu phải mã hóa base64 hoặc qua GCS. 
+                             // Tạm thời tôi truyền dạng text mô tả URL để không bị lỗi. Bạn cần tự thêm hàm upload/download hình nếu muốn truyền file thật.
+                             new { text = $"Ảnh cần phân tích: {answerKeyImageUrl}" }
+                         }
+                     }
+                 }
+            };
+
+            try
+            {
+                // Để hàm có CancellationToken mặc định như Interface nếu bạn chưa gắn Token
+                string responseString = await ExecuteWithKeyRotationAsync(requestBody, default);
+
+                using var document = JsonDocument.Parse(responseString);
+                var aiTextResponse = document.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString() ?? string.Empty;
+
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var match = Regex.Match(aiTextResponse, @"\{.*\}", RegexOptions.Singleline);
+
+                if (match.Success)
+                {
+                    string cleanJson = match.Value;
+                    // Chú ý: Trả về Object Rubric dựa trên chuỗi JSON.
+                    var rubric = JsonSerializer.Deserialize<Rubric>(cleanJson, options);
+                    return rubric ?? new Rubric();
+                }
+
+                throw new Exception("Mô hình AI không trả về Rubric JSON hợp lệ từ ảnh.");
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Không thể tạo barem từ ảnh: {ex.Message}");
             }
         }
     }

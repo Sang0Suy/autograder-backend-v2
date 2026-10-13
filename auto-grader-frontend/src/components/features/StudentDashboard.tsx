@@ -1,10 +1,9 @@
-﻿import { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import axios, { AxiosError } from 'axios';
 import { Loader2, TrendingUp, Award, BookOpen, Target, AlertCircle } from 'lucide-react';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
-// 🔥 Sửa lỗi TS1484: Tách riêng import type TooltipProps
 import type { TooltipProps } from 'recharts';
 
 interface ProgressItem {
@@ -12,6 +11,7 @@ interface ProgressItem {
     score: number;
     date: string;
     shortDate?: string;
+    studyGuide?: string; // Đã thêm biến nhận Lộ trình ôn tập
 }
 
 interface DashboardData {
@@ -30,7 +30,6 @@ interface DashboardData {
     scoreColumns?: Record<string, number>;
 }
 
-// 🔥 Sửa lỗi TS2339: Tự định nghĩa cấu trúc dữ liệu tường minh cho Tooltip
 interface CustomTooltipProps extends TooltipProps<number, string> {
     payload?: {
         value: number;
@@ -41,7 +40,6 @@ interface CustomTooltipProps extends TooltipProps<number, string> {
     label?: string;
 }
 
-// Áp dụng kiểu dữ liệu CustomTooltipProps vào component
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
         return (
@@ -136,7 +134,6 @@ export default function StudentDashboard() {
 
             {/* CÁC THẺ THỐNG KÊ TỔNG QUAN */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-
                 <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300">
                     <div className="flex items-center justify-between mb-4">
                         <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
@@ -182,7 +179,6 @@ export default function StudentDashboard() {
                         {stats.totalExamsTaken > 0 ? Math.round((stats.passedExams / stats.totalExamsTaken) * 100) : 0}%
                     </p>
                 </div>
-
             </div>
 
             {/* KHU VỰC BIỂU ĐỒ PHONG ĐỘ */}
@@ -283,26 +279,44 @@ export default function StudentDashboard() {
                             <tbody>
                                 {recentProgress.length > 0 ? (
                                     recentProgress.map((item, index) => (
-                                        <tr key={index} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors">
-                                            <td className="py-4 px-5 text-slate-500 font-medium whitespace-nowrap">{item.shortDate}</td>
-                                            <td className="py-4 px-5 text-slate-800 font-bold max-w-[250px] truncate" title={item.examName}>{item.examName}</td>
-                                            <td className="py-4 px-5 text-center">
-                                                <span className={`font-black text-xl ${item.score >= 5 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                    {item.score}
-                                                </span>
-                                            </td>
-                                            <td className="py-4 px-5 text-center">
-                                                {item.score >= 8 ? (
-                                                    <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-200">Giỏi 🎉</span>
-                                                ) : item.score >= 6.5 ? (
-                                                    <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold border border-blue-200">Khá 👍</span>
-                                                ) : item.score >= 5 ? (
-                                                    <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold border border-amber-200">TB 😐</span>
-                                                ) : (
-                                                    <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold border border-red-200">Yếu 😢</span>
-                                                )}
-                                            </td>
-                                        </tr>
+                                        <React.Fragment key={index}>
+                                            <tr className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors">
+                                                <td className="py-4 px-5 text-slate-500 font-medium whitespace-nowrap">{item.shortDate}</td>
+                                                <td className="py-4 px-5 text-slate-800 font-bold max-w-[250px] truncate" title={item.examName}>{item.examName}</td>
+                                                <td className="py-4 px-5 text-center">
+                                                    <span className={`font-black text-xl ${item.score >= 5 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                        {item.score}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4 px-5 text-center">
+                                                    {item.score >= 8 ? (
+                                                        <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-200">Giỏi 🎉</span>
+                                                    ) : item.score >= 6.5 ? (
+                                                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold border border-blue-200">Khá 👍</span>
+                                                    ) : item.score >= 5 ? (
+                                                        <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold border border-amber-200">TB 😐</span>
+                                                    ) : (
+                                                        <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold border border-red-200">Yếu 😢</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                            {/* 🔥 DÒNG NÀY HIỂN THỊ LỜI KHUYÊN CỦA AI NẾU CÓ DỮ LIỆU */}
+                                            {item.studyGuide && (
+                                                <tr className="bg-emerald-50/30">
+                                                    <td colSpan={4} className="py-3 px-5 border-b border-slate-100">
+                                                        <div className="flex items-start bg-white p-3 rounded-xl border border-emerald-100 shadow-sm">
+                                                            <div className="text-xl mr-3 mt-0.5">🤖</div>
+                                                            <div>
+                                                                <h4 className="text-emerald-800 font-bold text-xs uppercase tracking-wider mb-1">Trợ giảng AI khuyên:</h4>
+                                                                <p className="text-slate-600 text-sm leading-relaxed">
+                                                                    {item.studyGuide}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     ))
                                 ) : (
                                     <tr>
