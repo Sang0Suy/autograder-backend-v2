@@ -176,9 +176,10 @@ export default function ClassManager() {
             const targetText = ((r?.title || r?.Title || "") + " " + (r?.examType || r?.ExamType || "")).toLowerCase();
             const score = t.totalScore ?? t.TotalScore ?? 0;
 
+            // 🔥 ĐÃ SỬA LỖI ĐIỂM THI BỊ LẶP
             const is15p = ["15 phút", "15p"].some(k => targetText.includes(k));
             const is45p = ["45 phút", "45p", "1 tiết", "1t", "định kỳ", "giữa kỳ"].some(k => targetText.includes(k));
-            const isThi = ["thi học kỳ", "thi hk", "điểm thi", "thi", "cuối kỳ"].some(k => targetText.includes(k));
+            const isThi = !is15p && !is45p && ["thi học kỳ", "thi hk", "điểm thi", "cuối kỳ"].some(k => targetText.includes(k));
 
             if (is15p) scores15p.push(score);
             else if (is45p) scores45p.push(score);
@@ -436,9 +437,10 @@ export default function ClassManager() {
             const r = rubrics.find(rub => (rub.id || rub.Id) === tId);
             const targetText = ((r?.title || r?.Title || "") + " " + (r?.examType || r?.ExamType || "")).toLowerCase();
 
+            // 🔥 ĐÃ SỬA LỖI ĐIỂM THI BỊ LẶP Ở ĐÂY
             const is15p = ["15 phút", "15p"].some(k => targetText.includes(k));
             const is45p = ["45 phút", "45p", "1 tiết", "1t", "định kỳ", "giữa kỳ"].some(k => targetText.includes(k));
-            const isThi = ["thi học kỳ", "thi hk", "điểm thi", "thi", "cuối kỳ"].some(k => targetText.includes(k));
+            const isThi = !is15p && !is45p && ["thi học kỳ", "thi hk", "điểm thi", "cuối kỳ"].some(k => targetText.includes(k));
 
             if (category === "15p") return is15p;
             if (category === "45p") return is45p;
