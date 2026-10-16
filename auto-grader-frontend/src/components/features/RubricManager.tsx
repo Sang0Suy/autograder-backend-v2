@@ -492,9 +492,13 @@ export default function RubricManager() {
         return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     }
 
-    // 🔥 PHÂN TRANG VÀ LỌC (CHỈ LẤY ĐỀ GỐC ĐỂ PHÂN TRANG)
+    // 🔥 PHÂN TRANG VÀ LỌC (TÌM CÁC ĐỀ GỐC BẰNG LOGIC THÔNG MINH)
     const filteredBaseRubrics = useMemo(() => {
-        let result = rubrics.filter(r => !r.parentId && !r.ParentId); // Chỉ lấy ĐỀ GỐC
+        let result = rubrics.filter(r => {
+            const isChildByParentId = r.parentId || r.ParentId;
+            const isChildByName = r.title && r.title.includes(" - Mã đề ");
+            return !isChildByParentId && !isChildByName; // Phải thỏa mãn cả 2 mới là đề gốc
+        });
 
         if (filterType !== "Tất cả") result = result.filter(r => r.examType === filterType);
 
@@ -598,7 +602,11 @@ export default function RubricManager() {
                                 ) : currentBaseRubrics.map(baseRubric => {
 
                                     // 🔥 LẤY CÁC MÃ ĐỀ CON CỦA ĐỀ GỐC NÀY TỪ LIST TỔNG
-                                    const children = rubrics.filter(r => (r.parentId || r.ParentId) === baseRubric.id);
+                                    const children = rubrics.filter(r => {
+                                        const matchesByParentId = (r.parentId || r.ParentId) === baseRubric.id;
+                                        const matchesByName = r.title && r.title.startsWith(baseRubric.title) && r.title.includes(" - Mã đề ");
+                                        return matchesByParentId || matchesByName;
+                                    });
                                     const hasChildren = children.length > 0;
                                     const isExpanded = expandedParents[baseRubric.id!];
 
@@ -694,8 +702,7 @@ export default function RubricManager() {
                                                     </TableCell>
                                                     <TableCell className="font-medium text-slate-600 text-sm pl-[72px] max-w-[250px] truncate flex items-center">
                                                         <div className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-3"></div>
-                                                        <span title={child.title}>{child.title}</span>
-                                                    </TableCell>
+                                                        <span title={child.title}>{child.title.replace(`${baseRubric.title} `, '')}</span>                                                    </TableCell>
                                                     <TableCell>
                                                         <span className="px-3 py-1 bg-white text-slate-500 font-medium rounded-md text-xs border border-slate-200/60 shadow-sm">{child.examType}</span>
                                                     </TableCell>
