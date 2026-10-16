@@ -31,8 +31,8 @@ interface Rubric {
     startDate?: string | null;
     endDate?: string | null;
     maxAttempts?: number | null;
-    parentId?: string | null; // Cho phép nhận null
-    ParentId?: string | null;
+    parentId?: string; // 🔥 THÊM TRƯỜNG NÀY ĐỂ NHẬN DIỆN MÃ ĐỀ CON
+    ParentId?: string;
 }
 
 const MathFormatter = ({ text }: { text: string }) => {
@@ -126,7 +126,7 @@ export default function RubricManager() {
         setIsModalOpen(true)
     }
 
-    // 🔥 HÀM TẠO MÃ ĐỀ: Cập nhật ParentId
+    // 🔥 HÀM TẠO MÃ ĐỀ: Cập nhật ParentId (Gán mã đề con với Đề Gốc)
     const handleGenerateCodes = async () => {
         if (!selectedRubricToShuffle) return;
         setIsSaving(true);
@@ -349,7 +349,8 @@ export default function RubricManager() {
         try {
             setIsSaving(true)
             const payloadToSave = { ...newRubric };
-            // Gán thành chuỗi rỗng ("") hoặc undefined thay vì dùng null
+
+            // Xử lý Null cho Vercel Build Pass
             if (!payloadToSave.startDate) payloadToSave.startDate = undefined;
             if (!payloadToSave.endDate) payloadToSave.endDate = undefined;
             if (!payloadToSave.parentId) payloadToSave.parentId = undefined;
@@ -492,8 +493,6 @@ export default function RubricManager() {
         <>
             <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-700 print:hidden p-2 md:p-4 relative min-h-screen">
                 <div className="fixed inset-0 -z-20 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-50 via-slate-50 to-purple-50/50 pointer-events-none"></div>
-                <div className="fixed top-[-10%] right-[-5%] w-[600px] h-[600px] bg-indigo-300/20 rounded-full blur-[120px] -z-10 pointer-events-none animate-pulse"></div>
-                <div className="fixed bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-purple-400/20 rounded-full blur-[120px] -z-10 pointer-events-none animate-pulse delay-1000"></div>
 
                 {/* HEADER CARD */}
                 <div className="bg-white/70 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
@@ -534,7 +533,7 @@ export default function RubricManager() {
                     </div>
                 </div>
 
-                {/* BẢNG DỮ LIỆU CHÍNH */}
+                {/* BẢNG DỮ LIỆU CHÍNH TÍCH HỢP TREE VIEW */}
                 <div className="bg-white/70 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 overflow-hidden flex flex-col">
                     <div className="overflow-x-auto">
                         <Table>
@@ -554,7 +553,7 @@ export default function RubricManager() {
                                     <TableRow><TableCell colSpan={5} className="h-48 text-center text-slate-500 font-medium text-base">Không tìm thấy đề thi nào.</TableCell></TableRow>
                                 ) : currentBaseRubrics.map(baseRubric => {
 
-                                    // 🔥 LẤY CÁC MÃ ĐỀ CON CỦA ĐỀ GỐC NÀY
+                                    // 🔥 LẤY CÁC MÃ ĐỀ CON CỦA ĐỀ GỐC NÀY TỪ LIST TỔNG
                                     const children = rubrics.filter(r => (r.parentId || r.ParentId) === baseRubric.id);
                                     const hasChildren = children.length > 0;
                                     const isExpanded = expandedParents[baseRubric.id!];
@@ -564,6 +563,7 @@ export default function RubricManager() {
                                             {/* DÒNG ĐỀ GỐC */}
                                             <TableRow className={`hover:bg-indigo-50/50 transition-all duration-200 border-b border-slate-100/60 ${isExpanded ? 'bg-indigo-50/30' : ''}`}>
                                                 <TableCell className="font-bold text-slate-800 text-base pl-6 max-w-[250px] truncate flex items-center">
+                                                    {/* Nút Xổ mã đề (Chỉ hiện nếu có đề con) */}
                                                     {hasChildren ? (
                                                         <button onClick={() => toggleExpand(baseRubric.id!)} className="mr-3 w-6 h-6 flex items-center justify-center rounded-full bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-600 transition-colors">
                                                             {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -591,7 +591,7 @@ export default function RubricManager() {
                                                             <Printer className="w-4 h-4 mr-1.5" /> In Đề
                                                         </Button>
                                                         <Button variant="outline" size="sm" className="rounded-full text-emerald-600 border-emerald-200 bg-emerald-50/80 hover:bg-emerald-100 hover:text-emerald-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => handlePrintBubbleSheet(baseRubric)}>
-                                                            <ScanText className="w-4 h-4 mr-1.5" /> In Phiếu Tô
+                                                            <ScanText className="w-4 h-4 mr-1.5" /> Phiếu
                                                         </Button>
                                                         <input type="file" accept="image/*" id={`omr-test-${baseRubric.id}`} className="hidden" onChange={(e) => handleOmrTest(e, baseRubric.id!)} />
                                                         <Button variant="outline" size="sm" className="rounded-full text-fuchsia-600 border-fuchsia-200 bg-fuchsia-50/80 hover:bg-fuchsia-100 hover:text-fuchsia-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => document.getElementById(`omr-test-${baseRubric.id}`)?.click()}>
@@ -610,7 +610,7 @@ export default function RubricManager() {
                                                                 </Button>
                                                             </AlertDialogTrigger>
                                                             <AlertDialogContent className="bg-white/95 backdrop-blur-xl border-white rounded-[2rem] shadow-2xl">
-                                                                <AlertDialogHeader><AlertDialogTitle className="text-red-600 text-xl font-bold">Xóa đề thi này?</AlertDialogTitle></AlertDialogHeader>
+                                                                <AlertDialogHeader><AlertDialogTitle className="text-red-600 text-xl font-bold">Xóa đề thi gốc này?</AlertDialogTitle></AlertDialogHeader>
                                                                 <AlertDialogFooter className="mt-4">
                                                                     <AlertDialogCancel className="rounded-full font-bold px-6 border-slate-300">Hủy</AlertDialogCancel>
                                                                     <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700 rounded-full font-bold px-8 shadow-md border-none" onClick={() => handleDeleteRubric(baseRubric.id!)}>Xác nhận xóa</AlertDialogAction>
@@ -621,7 +621,7 @@ export default function RubricManager() {
                                                 </TableCell>
                                             </TableRow>
 
-                                            {/* 🔥 DÒNG MÃ ĐỀ CON (HIỂN THỊ KHI ĐƯỢC MỞ) */}
+                                            {/* 🔥 DÒNG MÃ ĐỀ CON (HIỂN THỊ KHI ĐƯỢC MỞ TRONG ACCORDION) */}
                                             {isExpanded && children.map(child => (
                                                 <TableRow key={child.id} className="bg-slate-50/60 hover:bg-slate-100 transition-all duration-200 border-b border-slate-200/50">
                                                     <TableCell className="font-medium text-slate-600 text-sm pl-[72px] max-w-[250px] truncate flex items-center">
@@ -635,7 +635,6 @@ export default function RubricManager() {
                                                     <TableCell className="text-center font-bold text-indigo-500 text-lg">{child.totalScore} đ</TableCell>
                                                     <TableCell className="text-right pr-6">
                                                         <div className="flex items-center justify-end flex-wrap gap-2 opacity-90">
-                                                            {/* Các nút chức năng cho mã đề con (Không có Edit và Tạo mã đề) */}
                                                             <Button variant="outline" size="sm" className="rounded-full text-indigo-600 border-indigo-200 bg-white hover:bg-indigo-50 font-bold shadow-sm" onClick={() => handlePrintExam(child)}>
                                                                 <Printer className="w-3 h-3 mr-1" /> In
                                                             </Button>

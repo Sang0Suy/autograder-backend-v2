@@ -408,10 +408,14 @@ export default function GradingHistory() {
 
             {/* MODAL PHÓNG TO CHI TIẾT */}
             <Dialog open={!!selectedResult} onOpenChange={() => setSelectedResult(null)}>
-                <DialogContent className="!max-w-5xl !w-[95vw] bg-white/95 backdrop-blur-xl p-0 overflow-hidden border border-white/60 shadow-2xl rounded-3xl">
-                    <div className={`h-3 w-full ${selectedResult?.isPlagiarized || selectedResult?.IsPlagiarized ? 'bg-gradient-to-r from-red-500 to-rose-600' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}></div>
+                {/* 🔥 SỬA LỖI TRÀN MÀN HÌNH TẠI ĐÂY: Thêm max-h-[90vh] và flex flex-col */}
+                <DialogContent className="!max-w-5xl !w-[95vw] max-h-[90vh] flex flex-col bg-white/95 backdrop-blur-xl p-0 overflow-hidden border border-white/60 shadow-2xl rounded-3xl">
 
-                    <DialogHeader className="p-6 md:p-8 pb-4 bg-white/80 border-b border-slate-200/60 backdrop-blur-md">
+                    {/* THANH MÀU TRÊN CÙNG (Cố định - shrink-0) */}
+                    <div className={`shrink-0 h-3 w-full ${selectedResult?.isPlagiarized || selectedResult?.IsPlagiarized ? 'bg-gradient-to-r from-red-500 to-rose-600' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}></div>
+
+                    {/* HEADER MODAL (Cố định - shrink-0) */}
+                    <DialogHeader className="shrink-0 p-6 md:p-8 pb-4 bg-white/80 border-b border-slate-200/60 backdrop-blur-md z-10">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center w-full gap-4">
                             <div>
                                 <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight flex items-center">
@@ -419,7 +423,7 @@ export default function GradingHistory() {
                                     Chi Tiết Bài Làm - {(selectedResult?.studentName || selectedResult?.StudentName)}
                                 </DialogTitle>
 
-                                {/* 🔥 HIỂN THỊ CẢNH BÁO CHI TIẾT TRONG MODAL */}
+                                {/* HIỂN THỊ CẢNH BÁO CHI TIẾT */}
                                 {(selectedResult?.isPlagiarized || selectedResult?.IsPlagiarized) && (
                                     <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start">
                                         <ShieldAlert className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
@@ -437,7 +441,7 @@ export default function GradingHistory() {
                                 )}
                             </div>
 
-                            {/* 🔥 KHỐI ĐIỂM SỐ NỔI BẬT */}
+                            {/* KHỐI ĐIỂM SỐ NỔI BẬT */}
                             <div className="bg-gradient-to-br from-indigo-600 to-blue-600 text-white px-8 py-4 rounded-2xl shadow-lg flex flex-col items-center justify-center min-w-[140px]">
                                 <span className="font-black text-4xl leading-none">{selectedResult?.totalScore ?? selectedResult?.TotalScore}</span>
                                 <span className="text-sm font-bold opacity-80 mt-1 uppercase tracking-wider">Điểm số</span>
@@ -445,11 +449,11 @@ export default function GradingHistory() {
                         </div>
                     </DialogHeader>
 
-                    <div className="bg-slate-100/50 p-4 md:p-8 min-h-[400px] flex items-center justify-center">
+                    {/* 🔥 BODY MODAL: CÓ THỂ CUỘN (flex-1 overflow-y-auto) */}
+                    <div className="flex-1 overflow-y-auto bg-slate-100/50 p-4 md:p-8 custom-scrollbar">
                         {selectedResult && (() => {
                             const rawUrl = selectedResult.paperImageUrl || selectedResult.PaperImageUrl || "";
 
-                            // Kiểm tra các định dạng file đặc biệt hoặc Trạng thái chờ
                             const isWait = rawUrl.includes("Đang chờ");
                             const isOnlineExam = rawUrl.includes("Thi Trực Tuyến") || rawUrl.includes("Online Exam");
                             const isDocument = rawUrl.match(/\.(doc|docx|txt|pdf|rar|zip)\$/i) != null || rawUrl.includes("📄 File");
@@ -459,18 +463,18 @@ export default function GradingHistory() {
 
                             if (isWait) {
                                 return (
-                                    <div className="text-center p-12 text-slate-500 font-medium">
-                                        <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-emerald-500" />
+                                    <div className="flex flex-col items-center justify-center h-full text-slate-500 font-medium min-h-[300px]">
+                                        <Loader2 className="w-10 h-10 animate-spin mb-4 text-emerald-500" />
                                         Hệ thống đang chờ AI phân tích dữ liệu...
                                     </div>
                                 );
                             }
 
-                            // 🔥 HIỂN THỊ BẢNG PHÂN TÍCH AI (Nếu có Details thì ưu tiên hiện cái này)
+                            // Nếu có bảng phân tích (Ưu tiên hiển thị bảng)
                             if (details.length > 0) {
                                 return (
-                                    <div className="w-full bg-white/80 backdrop-blur-sm rounded-3xl max-h-[60vh] overflow-y-auto border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] custom-scrollbar">
-                                        <div className="sticky top-0 bg-white/95 backdrop-blur-md p-6 border-b border-slate-100 z-20 flex justify-between items-start sm:items-center flex-col sm:flex-row gap-4">
+                                    <div className="w-full bg-white/80 backdrop-blur-sm rounded-3xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                                        <div className="sticky top-0 bg-white/95 backdrop-blur-md p-6 border-b border-slate-100 z-20 flex justify-between items-start sm:items-center flex-col sm:flex-row gap-4 rounded-t-3xl">
                                             <div>
                                                 <h3 className="font-black text-emerald-700 text-xl">Phân tích bài làm chi tiết</h3>
                                                 {isDocument && <p className="text-sm text-slate-500 font-medium mt-1">Học sinh đã nộp Tệp tin đính kèm.</p>}
@@ -530,10 +534,10 @@ export default function GradingHistory() {
                                 );
                             }
 
-                            // 🔥 NẾU KHÔNG CÓ BẢNG PHÂN TÍCH, NHƯNG LÀ ẢNH -> HIỆN ẢNH
+                            // Nếu không có bảng phân tích AI nhưng có ảnh
                             if (isImage && !isDocument && !isOnlineExam) {
                                 return (
-                                    <div className="flex flex-col items-center justify-center w-full">
+                                    <div className="flex flex-col items-center justify-center w-full min-h-[300px]">
                                         <div className="flex justify-end w-full mb-4 pr-2">
                                             <button onClick={() => downloadFileWithCustomName(rawUrl, selectedResult.studentName || selectedResult.StudentName || "Học_Sinh")} className="inline-flex items-center px-4 py-2.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-all border border-indigo-200 shadow-sm">
                                                 <Download className="w-4 h-4 mr-2" /> Tải Xuống Ảnh Bài Làm
@@ -543,7 +547,7 @@ export default function GradingHistory() {
                                             <img
                                                 src={rawUrl}
                                                 alt="Bài làm"
-                                                className="max-w-full h-auto max-h-[60vh] object-contain rounded-2xl"
+                                                className="max-w-full h-auto object-contain rounded-2xl"
                                                 onError={(e) => {
                                                     e.currentTarget.style.display = 'none';
                                                     e.currentTarget.parentElement!.innerHTML = '<div class="text-center p-10 text-red-500 bg-red-50 rounded-2xl w-full font-bold">❌ Không thể hiển thị trực tiếp. Vui lòng sử dụng nút Tải Xuống bên trên.</div>';
@@ -554,9 +558,9 @@ export default function GradingHistory() {
                                 );
                             }
 
-                            // 🔥 NẾU KHÔNG CÓ BẢNG PHÂN TÍCH, MÀ LÀ TỆP TIN / BÀI LÀM TRỰC TUYẾN -> HIỆN NÚT TẢI
+                            // Nếu chỉ là Document hoặc File thường
                             return (
-                                <div className="flex flex-col items-center justify-center bg-white p-10 rounded-3xl border border-slate-100 shadow-sm text-center">
+                                <div className="flex flex-col items-center justify-center h-full min-h-[300px] bg-white p-10 rounded-3xl border border-slate-100 shadow-sm text-center">
                                     <FileText className="w-16 h-16 text-indigo-400 mb-4" />
                                     <h3 className="font-bold text-xl text-slate-800 mb-2">Bài Làm {isDocument ? 'Đính Kèm' : 'Trực Tuyến'}</h3>
                                     <p className="text-slate-500 mb-6 max-w-sm">Học sinh không nộp ảnh. Không thể hiển thị trực tiếp nội dung bài làm này.</p>
@@ -570,13 +574,14 @@ export default function GradingHistory() {
                         })()}
                     </div>
 
-                    <div className="p-4 md:p-6 bg-white/80 backdrop-blur-md text-center border-t border-slate-200/60 flex flex-wrap justify-end gap-3 rounded-b-3xl">
+                    {/* 🔥 FOOTER MODAL (Cố định ở đáy - shrink-0) */}
+                    <div className="shrink-0 p-4 md:p-5 bg-white/95 backdrop-blur-md border-t border-slate-200/60 flex flex-wrap justify-end gap-3 rounded-b-3xl">
                         {selectedResult && (selectedResult.paperImageUrl !== "💻 Thi Trực Tuyến (Online Exam)" && selectedResult.PaperImageUrl !== "💻 Thi Trực Tuyến (Online Exam)") ? (
-                            <Button variant="outline" className="rounded-full font-bold px-6 border-slate-300 h-12 text-base w-full sm:w-auto hover:bg-slate-100 bg-white/50" onClick={() => window.open((selectedResult.paperImageUrl || selectedResult.PaperImageUrl)!, '_blank')}>
-                                Mở file trên trình duyệt
+                            <Button variant="outline" className="rounded-full font-bold px-6 border-slate-300 h-11 text-sm w-full sm:w-auto hover:bg-slate-100 bg-white shadow-sm" onClick={() => window.open((selectedResult.paperImageUrl || selectedResult.PaperImageUrl)!, '_blank')}>
+                                Mở file trên tab khác
                             </Button>
                         ) : null}
-                        <Button className="rounded-full font-bold px-8 bg-slate-900 hover:bg-slate-800 text-white shadow-md h-12 text-base w-full sm:w-auto" onClick={() => setSelectedResult(null)}>
+                        <Button className="rounded-full font-bold px-8 bg-slate-900 hover:bg-slate-800 text-white shadow-md h-11 text-sm w-full sm:w-auto" onClick={() => setSelectedResult(null)}>
                             Đóng cửa sổ
                         </Button>
                     </div>
