@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react'
+﻿import React, { useState, useEffect, useMemo } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,7 @@ import 'katex/dist/katex.min.css';
 import { InlineMath } from 'react-katex';
 import BubbleSheet from './BubbleSheet';
 import axios from 'axios'
-import { Plus, Printer, Trash2, ClipboardCheck, Loader2, Edit, LayoutList, Search, ScanText, Camera, CheckCircle2, ChevronRight, Globe, Settings2, Shuffle, ChevronLeft, Download, Upload } from "lucide-react"
+import { Plus, Printer, Trash2, ClipboardCheck, Loader2, Edit, LayoutList, Search, ScanText, Camera, CheckCircle2, ChevronRight, Globe, Settings2, Shuffle, ChevronLeft, Download, Upload, ChevronDown } from "lucide-react"
 
 interface Question {
     order: number;
@@ -31,6 +31,8 @@ interface Rubric {
     startDate?: string | null;
     endDate?: string | null;
     maxAttempts?: number | null;
+    parentId?: string; // 🔥 THÊM TRƯỜNG NÀY ĐỂ NHẬN DIỆN MÃ ĐỀ CON
+    ParentId?: string;
 }
 
 const MathFormatter = ({ text }: { text: string }) => {
@@ -49,7 +51,6 @@ const MathFormatter = ({ text }: { text: string }) => {
 };
 
 export default function RubricManager() {
-    // === STATES CƠ BẢN ===
     const [rubrics, setRubrics] = useState<Rubric[]>([])
     const [filterType, setSelectedType] = useState("Tất cả")
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -61,30 +62,27 @@ export default function RubricManager() {
     const [isScanning, setIsScanning] = useState(false)
 
     const [printingRubric, setPrintingRubric] = useState<Rubric | null>(null)
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [omrResult, setOmrResult] = useState<any>(null)
     const [isResultModalOpen, setIsResultModalOpen] = useState(false)
 
-    // 🔥 STATE CHO TÍNH NĂNG TẠO MÃ ĐỀ (TRỘN CÂU HỎI)
     const [shuffleModalOpen, setShuffleModalOpen] = useState(false)
     const [shuffleCount, setShuffleCount] = useState(1)
     const [selectedRubricToShuffle, setSelectedRubricToShuffle] = useState<Rubric | null>(null)
 
-    // 🔥 STATE PHÂN TRANG (PAGINATION)
     const [currentPage, setCurrentPage] = useState(1)
     const itemsPerPage = 10
     const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
+
+    // 🔥 STATE QUẢN LÝ ĐÓNG/MỞ ACCORDION CHO TỪNG ĐỀ GỐC
+    const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({})
+
     const defaultRubric: Rubric = {
         title: '', examType: '15p',
         questions: [{ order: 1, questionType: 'Essay', content: '', options: '|||', correctAnswer: '', explanation: '', maxScore: 2.0 }],
-        startDate: '',
-        endDate: '',
-        maxAttempts: null
+        startDate: '', endDate: '', maxAttempts: null, parentId: ''
     }
     const [newRubric, setNewRubric] = useState<Rubric>(defaultRubric)
 
-    // === FETCH DỮ LIỆU ===
     const fetchRubrics = async () => {
         try {
             setIsLoading(true)
@@ -97,12 +95,13 @@ export default function RubricManager() {
         }
     }
 
-    // eslint-disable-next-line
-    useEffect(() => {
-        fetchRubrics()
-    }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => { fetchRubrics() }, [])
 
-    // === XỬ LÝ MODAL ===
+    const toggleExpand = (id: string) => {
+        setExpandedParents(prev => ({ ...prev, [id]: !prev[id] }))
+    }
+
     const openEditModal = (rubric: Rubric) => {
         const safeQuestions = rubric.questions.map(q => ({
             ...q,
@@ -127,7 +126,7 @@ export default function RubricManager() {
         setIsModalOpen(true)
     }
 
-    // 🔥 HÀM TẠO MÃ ĐỀ (XÁO TRỘN CÂU HỎI)
+    // 🔥 HÀM TẠO MÃ ĐỀ: Cập nhật ParentId
     const handleGenerateCodes = async () => {
         if (!selectedRubricToShuffle) return;
         setIsSaving(true);
@@ -135,21 +134,15 @@ export default function RubricManager() {
 
         try {
             for (let i = 0; i < shuffleCount; i++) {
-                // Tạo mã đề ngẫu nhiên 3 số (vd: 104, 209)
                 const code = Math.floor(100 + Math.random() * 900);
-
-                // Trộn mảng câu hỏi bằng thuật toán Fisher-Yates
                 const shuffledQuestions = [...selectedRubricToShuffle.questions];
+
                 for (let j = shuffledQuestions.length - 1; j > 0; j--) {
                     const k = Math.floor(Math.random() * (j + 1));
                     [shuffledQuestions[j], shuffledQuestions[k]] = [shuffledQuestions[k], shuffledQuestions[j]];
                 }
 
-                // Cập nhật lại số thứ tự (order) từ 1 đến N cho mảng đã trộn
-                const finalQuestions = shuffledQuestions.map((q, idx) => ({
-                    ...q,
-                    order: idx + 1
-                }));
+                const finalQuestions = shuffledQuestions.map((q, idx) => ({ ...q, order: idx + 1 }));
 
                 const newRubricData = {
                     title: `${selectedRubricToShuffle.title} - Mã đề ${code}`,
@@ -157,7 +150,8 @@ export default function RubricManager() {
                     startDate: selectedRubricToShuffle.startDate,
                     endDate: selectedRubricToShuffle.endDate,
                     maxAttempts: selectedRubricToShuffle.maxAttempts,
-                    questions: finalQuestions
+                    questions: finalQuestions,
+                    ParentId: selectedRubricToShuffle.id // 🔥 LIÊN KẾT VỚI ĐỀ GỐC
                 };
 
                 await axios.post('/api/Rubrics', newRubricData);
@@ -165,7 +159,10 @@ export default function RubricManager() {
 
             toast.success(`Đã tạo thành công ${shuffleCount} mã đề thi!`, { id: toastId });
             setShuffleModalOpen(false);
-            fetchRubrics(); // Load lại bảng
+
+            // Tự động mở Accordion của đề gốc vừa trộn
+            setExpandedParents(prev => ({ ...prev, [selectedRubricToShuffle.id!]: true }))
+            fetchRubrics();
         } catch (error) {
             console.error(error);
             toast.error("Lỗi khi tạo mã đề!", { id: toastId });
@@ -174,7 +171,6 @@ export default function RubricManager() {
         }
     }
 
-    // === XỬ LÝ TRÍCH XUẤT ĐỀ THI TỪ MỌI LOẠI FILE (WORD, PDF, TXT, ẢNH) ===
     const handleScanExam = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
@@ -182,16 +178,11 @@ export default function RubricManager() {
         try {
             setIsScanning(true);
             const toastId = toast.loading("🤖 AI đang đọc và bóc tách dữ liệu từ file...");
-
             const formData = new FormData();
-            // Đổi tên key thành 'Files' (hoặc giữ nguyên tùy Backend của bạn)
             formData.append('file', files[0]);
             formData.append('ImageFiles', files[0]);
 
-            // Gọi API quét Đề (Lúc này API C# đã được nâng cấp để nhận mọi file)
-            const response = await axios.post('/api/Ocr/extract-exam', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const response = await axios.post('/api/Ocr/extract-exam', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 
             if (response.data && Array.isArray(response.data.questions)) {
                 const newQuestions = response.data.questions.map((q: any, idx: number) => ({
@@ -208,6 +199,7 @@ export default function RubricManager() {
                 toast.success(`Phân tích thành công ${newQuestions.length} câu hỏi!`, { id: toastId });
             }
         } catch (error) {
+            console.error(error);
             toast.error("File quá phức tạp hoặc AI không thể đọc được định dạng này!");
         } finally {
             setIsScanning(false);
@@ -215,11 +207,9 @@ export default function RubricManager() {
         }
     }
 
-    // === XỬ LÝ TRÍCH XUẤT ĐÁP ÁN TỪ MỌI LOẠI FILE ===
     const handleScanAnswerKey = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
-
         if (newRubric.questions.length <= 1 && !newRubric.questions[0].content) {
             return toast.warning("Vui lòng nạp câu hỏi trước khi nạp đáp án!");
         }
@@ -227,7 +217,6 @@ export default function RubricManager() {
         try {
             setIsScanning(true);
             const toastId = toast.loading("🤖 AI đang phân tích và khớp nối đáp án...");
-
             const formData = new FormData();
             Array.from(files).forEach(file => formData.append('ImageFiles', file));
 
@@ -235,7 +224,6 @@ export default function RubricManager() {
 
             if (response.data && Array.isArray(response.data.answers)) {
                 const currentQuestions = [...newRubric.questions];
-
                 response.data.answers.forEach((ans: any) => {
                     const qIndex = currentQuestions.findIndex(q => q.order === ans.order);
                     if (qIndex !== -1) {
@@ -243,11 +231,11 @@ export default function RubricManager() {
                         currentQuestions[qIndex].explanation = ans.explanation || currentQuestions[qIndex].explanation;
                     }
                 });
-
                 setNewRubric({ ...newRubric, questions: currentQuestions });
                 toast.success(`Đã đắp xong đáp án vào khung đề thi!`, { id: toastId });
             }
         } catch (error) {
+            console.error(error);
             toast.error("Lỗi khi đọc file đáp án!");
         } finally {
             setIsScanning(false);
@@ -271,8 +259,6 @@ export default function RubricManager() {
         if (!file) return;
 
         const fileExt = file.name.split('.').pop()?.toLowerCase();
-
-        // Trường hợp 1: Nếu là file JSON -> Xử lý mượt mà ngay trên trình duyệt
         if (fileExt === 'json') {
             const reader = new FileReader();
             reader.onload = (event) => {
@@ -281,10 +267,9 @@ export default function RubricManager() {
                     if (Array.isArray(parsedQuestions)) {
                         setNewRubric({ ...newRubric, questions: parsedQuestions });
                         toast.success("Đã nạp Barem từ file JSON thành công!");
-                    } else {
-                        toast.error("Cấu trúc file JSON không hợp lệ!");
-                    }
+                    } else { toast.error("Cấu trúc file JSON không hợp lệ!"); }
                 } catch (err) {
+                    console.error(err);
                     toast.error("Lỗi khi đọc file JSON!");
                 }
             };
@@ -293,19 +278,14 @@ export default function RubricManager() {
             return;
         }
 
-        // Trường hợp 2: File Excel, Word, PDF, Hình ảnh -> Nhờ AI Backend xử lý
         try {
             setIsScanning(true);
             const toastId = toast.loading("🤖 AI đang đọc và phân tích cấu trúc Barem...");
-
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('ImageFiles', file); // Gửi kèm đề phòng AI cần xử lý hình ảnh
+            formData.append('ImageFiles', file);
 
-            // Chuyển hướng file sang API AI để bóc tách
-            const response = await axios.post('/api/Ocr/extract-exam', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const response = await axios.post('/api/Ocr/extract-exam', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 
             if (response.data && Array.isArray(response.data.questions)) {
                 const newQuestions = response.data.questions.map((q: any, idx: number) => ({
@@ -317,11 +297,11 @@ export default function RubricManager() {
                     explanation: q.explanation || '',
                     maxScore: q.maxScore || 1.0
                 }));
-
                 setNewRubric({ ...newRubric, title: response.data.title || newRubric.title, questions: newQuestions });
                 toast.success(`Nhập Barem thành công với ${newQuestions.length} câu!`, { id: toastId });
             }
         } catch (error) {
+            console.error(error);
             toast.error("File quá phức tạp hoặc AI không nhận diện được định dạng này!");
         } finally {
             setIsScanning(false);
@@ -329,36 +309,27 @@ export default function RubricManager() {
         }
     };
 
-    // === XỬ LÝ SỬA ĐỔI FORM CÂU HỎI ===
     const addQuestionField = () => {
         const newIndex = newRubric.questions.length;
         setNewRubric({
             ...newRubric,
-            questions: [...newRubric.questions, { order: newIndex + 1, questionType: 'MultipleChoice', content: '', options: '|||', correctAnswer: 'A', explanation: '', maxScore: 1.0 }] // Set điểm mặc định 1.0 cho gọn
+            questions: [...newRubric.questions, { order: newIndex + 1, questionType: 'MultipleChoice', content: '', options: '|||', correctAnswer: 'A', explanation: '', maxScore: 1.0 }]
         });
-        setActiveQuestionIndex(newIndex); // Tự động focus vào câu mới tạo
+        setActiveQuestionIndex(newIndex);
     }
 
     const removeQuestionField = (index: number) => {
         if (newRubric.questions.length <= 1) return toast.warning("Đề thi phải có ít nhất 1 câu hỏi!");
-
         const updated = newRubric.questions.filter((_, i) => i !== index);
         setNewRubric({ ...newRubric, questions: updated.map((q, i) => ({ ...q, order: i + 1 })) });
-
-        // Điều chỉnh lại vị trí index để không bị văng lỗi màn hình trắng
-        if (activeQuestionIndex >= updated.length) {
-            setActiveQuestionIndex(Math.max(0, updated.length - 1));
-        } else if (activeQuestionIndex === index) {
-            setActiveQuestionIndex(Math.max(0, activeQuestionIndex - 1));
-        }
+        if (activeQuestionIndex >= updated.length) { setActiveQuestionIndex(Math.max(0, updated.length - 1)); }
+        else if (activeQuestionIndex === index) { setActiveQuestionIndex(Math.max(0, activeQuestionIndex - 1)); }
     }
+
     const updateQuestion = (index: number, field: keyof Question, value: string | number) => {
         const updated = [...newRubric.questions]
         updated[index] = { ...updated[index], [field]: value }
-
-        if (field === 'questionType' && value === 'MultipleChoice') {
-            updated[index].correctAnswer = 'A'
-        }
+        if (field === 'questionType' && value === 'MultipleChoice') updated[index].correctAnswer = 'A'
         setNewRubric({ ...newRubric, questions: updated })
     }
 
@@ -370,7 +341,6 @@ export default function RubricManager() {
         setNewRubric({ ...newRubric, questions: updated })
     }
 
-    // === XỬ LÝ LƯU, XÓA & IN ẤN ===
     const handleSaveRubric = async () => {
         if (!newRubric.title.trim()) return toast.warning("Vui lòng nhập Tên bộ đề thi!")
         const isAnyQuestionEmpty = newRubric.questions.some(q => !q.correctAnswer.trim())
@@ -378,10 +348,10 @@ export default function RubricManager() {
 
         try {
             setIsSaving(true)
-
             const payloadToSave = { ...newRubric };
             if (!payloadToSave.startDate) payloadToSave.startDate = null;
             if (!payloadToSave.endDate) payloadToSave.endDate = null;
+            if (!payloadToSave.parentId) payloadToSave.parentId = null;
 
             if (editingId) {
                 await axios.put(`/api/Rubrics/${editingId}`, payloadToSave)
@@ -392,11 +362,11 @@ export default function RubricManager() {
             }
             setIsModalOpen(false)
             fetchRubrics()
-        } catch {
+        } catch (error) {
+            console.error(error);
             toast.error("Lỗi khi lưu dữ liệu!")
-        } finally {
-            setIsSaving(false)
         }
+        finally { setIsSaving(false) }
     }
 
     const handleDeleteRubric = async (id: string) => {
@@ -404,7 +374,8 @@ export default function RubricManager() {
             await axios.delete(`/api/Rubrics/${id}`)
             toast.success("Đã xóa bộ đề thi!")
             fetchRubrics()
-        } catch {
+        } catch (error) {
+            console.error(error);
             toast.error("Không thể xóa đề thi này!")
         }
     }
@@ -440,7 +411,6 @@ export default function RubricManager() {
                     <div class="content">
                         ${rubric.questions.map(q => {
             let contentHtml = `<div class="question"><div class="question-title">Câu ${q.order} (${q.maxScore} điểm):</div><div>${q.content}</div>`
-
             if (q.questionType === 'MultipleChoice') {
                 const opts = (q.options || '|||').split('|')
                 contentHtml += `
@@ -466,14 +436,9 @@ export default function RubricManager() {
 
     const handlePrintBubbleSheet = (rubric: Rubric) => {
         const hasMCQ = rubric.questions.some(q => q.questionType === 'MultipleChoice');
-        if (!hasMCQ) {
-            toast.warning("Đề thi này không có câu hỏi trắc nghiệm nào!");
-            return;
-        }
+        if (!hasMCQ) return toast.warning("Đề thi này không có câu hỏi trắc nghiệm nào!");
         setPrintingRubric(rubric);
-        setTimeout(() => {
-            window.print();
-        }, 200);
+        setTimeout(() => { window.print(); }, 200);
     }
 
     const handleOmrTest = async (e: React.ChangeEvent<HTMLInputElement>, rubricId: string) => {
@@ -481,10 +446,7 @@ export default function RubricManager() {
         if (!file) return;
 
         const studentCode = prompt("Nhập mã học sinh giả định để test (VD: HS001):", "HS001");
-        if (!studentCode) {
-            e.target.value = '';
-            return;
-        }
+        if (!studentCode) { e.target.value = ''; return; }
 
         const formData = new FormData();
         formData.append('ImageFile', file);
@@ -493,57 +455,46 @@ export default function RubricManager() {
 
         const toastId = toast.loading("📸 Mắt thần OpenCV đang quét ảnh...");
         try {
-            const res = await axios.post('/api/Grading/omr-grade', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
+            const res = await axios.post('/api/Grading/omr-grade', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             toast.dismiss(toastId);
             setOmrResult(res.data);
             setIsResultModalOpen(true);
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
-            console.error("Lỗi OMR:", error);
             toast.error(error.response?.data?.error || "OpenCV báo lỗi khi quét ảnh hoặc Server bị lỗi", { id: toastId });
-        } finally {
-            e.target.value = '';
-        }
+        } finally { e.target.value = ''; }
     }
-
 
     const removeAccents = (str: string) => {
         if (!str) return ""
         return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     }
 
-    const filteredRubrics = useMemo(() => {
-        let result = filterType === "Tất cả" ? rubrics : rubrics.filter(r => r.examType === filterType);
+    // 🔥 PHÂN TRANG VÀ LỌC (CHỈ LẤY ĐỀ GỐC ĐỂ PHÂN TRANG)
+    const filteredBaseRubrics = useMemo(() => {
+        let result = rubrics.filter(r => !r.parentId && !r.ParentId); // Chỉ lấy ĐỀ GỐC
+
+        if (filterType !== "Tất cả") result = result.filter(r => r.examType === filterType);
+
         if (searchTerm.trim()) {
             const searchLower = removeAccents(searchTerm);
             result = result.filter(r => removeAccents(r.title).includes(searchLower));
         }
-        return result.reverse(); // Sắp xếp mới nhất lên đầu
+        return result.reverse();
     }, [rubrics, filterType, searchTerm]);
 
-    // Đẩy trang về 1 nếu thay đổi bộ lọc hoặc từ khóa tìm kiếm
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm, filterType]);
+    useEffect(() => { setCurrentPage(1); }, [searchTerm, filterType]);
 
-    // Các biến cần cho giao diện phân trang
-    const totalPages = Math.ceil(filteredRubrics.length / itemsPerPage);
-    const currentRubricsData = filteredRubrics.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const totalPages = Math.ceil(filteredBaseRubrics.length / itemsPerPage);
+    const currentBaseRubrics = filteredBaseRubrics.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     return (
         <>
             <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-700 print:hidden p-2 md:p-4 relative min-h-screen">
-
-                {/* 🔥 GLOBAL BACKGROUND DECORATION (Hiệu ứng kính mờ & ánh sáng nền) */}
                 <div className="fixed inset-0 -z-20 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-50 via-slate-50 to-purple-50/50 pointer-events-none"></div>
                 <div className="fixed top-[-10%] right-[-5%] w-[600px] h-[600px] bg-indigo-300/20 rounded-full blur-[120px] -z-10 pointer-events-none animate-pulse"></div>
                 <div className="fixed bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-purple-400/20 rounded-full blur-[120px] -z-10 pointer-events-none animate-pulse delay-1000"></div>
 
-                {/* 🔥 HEADER CARD - GLASSMORPHISM */}
+                {/* HEADER CARD */}
                 <div className="bg-white/70 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-100 to-blue-50 rounded-full blur-3xl -z-10 opacity-70 translate-x-1/3 -translate-y-1/3"></div>
                     <div>
@@ -557,17 +508,14 @@ export default function RubricManager() {
                     </Button>
                 </div>
 
-                {/* 🔥 BỘ LỌC VÀ TÌM KIẾM - GLASSMORPHISM */}
+                {/* BỘ LỌC VÀ TÌM KIẾM */}
                 <div className="bg-white/70 backdrop-blur-xl p-4 rounded-[2rem] border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col lg:flex-row items-start lg:items-center gap-4">
                     <div className="relative w-full lg:w-[450px]">
                         <Search className="absolute left-5 top-3.5 h-5 w-5 text-slate-400" />
                         <Input
                             placeholder="Tìm kiếm theo tên đề thi..."
                             value={searchTerm}
-                            onChange={(e) => {
-                                setSearchTerm(e.target.value);
-                                setCurrentPage(1);
-                            }}
+                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                             className="pl-14 h-12 bg-white/50 border-white/60 focus-visible:ring-indigo-500 focus-visible:bg-white rounded-full transition-all text-base shadow-sm backdrop-blur-sm"
                         />
                     </div>
@@ -576,10 +524,7 @@ export default function RubricManager() {
                         {["Tất cả", "Thường xuyên", "15p", "45p", "Thi"].map(t => (
                             <button
                                 key={t}
-                                onClick={() => {
-                                    setSelectedType(t);
-                                    setCurrentPage(1);
-                                }}
+                                onClick={() => { setSelectedType(t); setCurrentPage(1); }}
                                 className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 whitespace-nowrap shadow-sm backdrop-blur-sm ${filterType === t ? 'bg-indigo-600 text-white border border-indigo-700 shadow-md transform scale-105' : 'bg-white/50 text-slate-600 border border-white/60 hover:bg-white hover:text-indigo-600'}`}
                             >
                                 {t}
@@ -588,13 +533,13 @@ export default function RubricManager() {
                     </div>
                 </div>
 
-                {/* BẢNG DỮ LIỆU - GLASSMORPHISM */}
+                {/* BẢNG DỮ LIỆU CHÍNH */}
                 <div className="bg-white/70 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 overflow-hidden flex flex-col">
                     <div className="overflow-x-auto">
                         <Table>
                             <TableHeader className="bg-slate-100/50 backdrop-blur-md">
                                 <TableRow className="border-b border-slate-200/60 whitespace-nowrap">
-                                    <TableHead className="font-bold text-slate-700 pl-8 py-5">Tên Đề / Barem</TableHead>
+                                    <TableHead className="font-bold text-slate-700 pl-8 py-5 min-w-[300px]">Tên Đề / Barem</TableHead>
                                     <TableHead className="font-bold text-slate-700 py-5">Loại Đề</TableHead>
                                     <TableHead className="text-center font-bold text-slate-700 py-5">Số Câu</TableHead>
                                     <TableHead className="text-center font-black text-slate-800 py-5 bg-slate-200/30">Tổng Điểm</TableHead>
@@ -604,67 +549,128 @@ export default function RubricManager() {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={5} className="h-48 text-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto" /></TableCell></TableRow>
-                                ) : currentRubricsData.length === 0 ? (
+                                ) : currentBaseRubrics.length === 0 ? (
                                     <TableRow><TableCell colSpan={5} className="h-48 text-center text-slate-500 font-medium text-base">Không tìm thấy đề thi nào.</TableCell></TableRow>
-                                ) : currentRubricsData.map(r => (
-                                    <TableRow key={r.id} className="hover:bg-white/80 transition-all duration-200 border-b border-slate-100/60 last:border-0">
-                                        <TableCell className="font-bold text-slate-800 text-base pl-8 max-w-[250px] truncate" title={r.title}>{r.title}</TableCell>
-                                        <TableCell>
-                                            <span className="px-3 py-1.5 bg-slate-100/80 text-slate-700 font-bold rounded-lg text-xs border border-slate-200/60 shadow-sm">{r.examType}</span>
-                                        </TableCell>
-                                        <TableCell className="text-center font-bold text-slate-600 text-base">{r.questions.length}</TableCell>
-                                        <TableCell className="text-center font-black text-indigo-600 text-xl bg-slate-100/30 backdrop-blur-sm">{r.totalScore} đ</TableCell>
-                                        <TableCell className="text-right pr-6">
-                                            <div className="flex items-center justify-end flex-wrap gap-2">
-                                                <Button variant="ghost" size="icon" className="text-blue-600 hover:bg-blue-100 rounded-full w-10 h-10 transition-colors shadow-sm bg-white/50 border border-white" title="Chỉnh sửa" onClick={() => openEditModal(r)}>
-                                                    <Edit className="w-4 h-4" />
-                                                </Button>
-                                                <Button variant="outline" size="sm" className="rounded-full text-orange-600 border-orange-200 bg-orange-50/80 hover:bg-orange-100 hover:text-orange-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => { setSelectedRubricToShuffle(r); setShuffleCount(1); setShuffleModalOpen(true); }}>
-                                                    <Shuffle className="w-4 h-4 mr-1.5" /> Tạo Mã Đề
-                                                </Button>
-                                                <Button variant="outline" size="sm" className="rounded-full text-indigo-600 border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100 hover:text-indigo-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => handlePrintExam(r)}>
-                                                    <Printer className="w-4 h-4 mr-1.5" /> In Đề
-                                                </Button>
-                                                <Button variant="outline" size="sm" className="rounded-full text-emerald-600 border-emerald-200 bg-emerald-50/80 hover:bg-emerald-100 hover:text-emerald-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => handlePrintBubbleSheet(r)}>
-                                                    <ScanText className="w-4 h-4 mr-1.5" /> In Phiếu Tô
-                                                </Button>
-                                                <input type="file" accept="image/*" id={`omr-test-${r.id}`} className="hidden" onChange={(e) => handleOmrTest(e, r.id!)} />
-                                                <Button variant="outline" size="sm" className="rounded-full text-fuchsia-600 border-fuchsia-200 bg-fuchsia-50/80 hover:bg-fuchsia-100 hover:text-fuchsia-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => document.getElementById(`omr-test-${r.id}`)?.click()}>
-                                                    <Camera className="w-4 h-4 mr-1.5" /> Chấm Thử
-                                                </Button>
-                                                <Button variant="outline" size="sm" className="rounded-full text-sky-600 border-sky-200 bg-sky-50/80 hover:bg-sky-100 hover:text-sky-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/thi-truc-tuyen/${r.id}`); toast.success("Đã copy link phòng thi!"); }}>
-                                                    <Globe className="w-4 h-4 mr-1.5" /> Copy Link
-                                                </Button>
-                                                <Button variant="outline" size="sm" className="rounded-full text-teal-600 border-teal-200 bg-teal-50/80 hover:bg-teal-100 hover:text-teal-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => window.open(`/thi-truc-tuyen/${r.id}`, '_blank')}>
-                                                    <LayoutList className="w-4 h-4 mr-1.5" /> Thi Thử
-                                                </Button>
+                                ) : currentBaseRubrics.map(baseRubric => {
 
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-100 rounded-full w-10 h-10 transition-colors ml-1 shadow-sm bg-white/50 border border-white" title="Xóa">
-                                                            <Trash2 className="w-4 h-4" />
+                                    // 🔥 LẤY CÁC MÃ ĐỀ CON CỦA ĐỀ GỐC NÀY
+                                    const children = rubrics.filter(r => (r.parentId || r.ParentId) === baseRubric.id);
+                                    const hasChildren = children.length > 0;
+                                    const isExpanded = expandedParents[baseRubric.id!];
+
+                                    return (
+                                        <React.Fragment key={baseRubric.id}>
+                                            {/* DÒNG ĐỀ GỐC */}
+                                            <TableRow className={`hover:bg-indigo-50/50 transition-all duration-200 border-b border-slate-100/60 ${isExpanded ? 'bg-indigo-50/30' : ''}`}>
+                                                <TableCell className="font-bold text-slate-800 text-base pl-6 max-w-[250px] truncate flex items-center">
+                                                    {hasChildren ? (
+                                                        <button onClick={() => toggleExpand(baseRubric.id!)} className="mr-3 w-6 h-6 flex items-center justify-center rounded-full bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-600 transition-colors">
+                                                            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                                        </button>
+                                                    ) : (
+                                                        <span className="w-9 inline-block"></span>
+                                                    )}
+                                                    <span title={baseRubric.title}>{baseRubric.title}</span>
+                                                    {hasChildren && <span className="ml-3 bg-indigo-100 text-indigo-700 text-xs px-2.5 py-0.5 rounded-full border border-indigo-200">{children.length} mã đề</span>}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className="px-3 py-1.5 bg-slate-100/80 text-slate-700 font-bold rounded-lg text-xs border border-slate-200/60 shadow-sm">{baseRubric.examType}</span>
+                                                </TableCell>
+                                                <TableCell className="text-center font-bold text-slate-600 text-base">{baseRubric.questions.length}</TableCell>
+                                                <TableCell className="text-center font-black text-indigo-600 text-xl bg-slate-100/30 backdrop-blur-sm">{baseRubric.totalScore} đ</TableCell>
+                                                <TableCell className="text-right pr-6">
+                                                    <div className="flex items-center justify-end flex-wrap gap-2">
+                                                        <Button variant="ghost" size="icon" className="text-blue-600 hover:bg-blue-100 rounded-full w-10 h-10 transition-colors shadow-sm bg-white/50 border border-white" title="Chỉnh sửa" onClick={() => openEditModal(baseRubric)}>
+                                                            <Edit className="w-4 h-4" />
                                                         </Button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent className="bg-white/95 backdrop-blur-xl border-white rounded-[2rem] shadow-2xl">
-                                                        <AlertDialogHeader><AlertDialogTitle className="text-red-600 text-xl font-bold">Xóa đề thi này?</AlertDialogTitle></AlertDialogHeader>
-                                                        <AlertDialogFooter className="mt-4">
-                                                            <AlertDialogCancel className="rounded-full font-bold px-6 border-slate-300">Hủy</AlertDialogCancel>
-                                                            <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700 rounded-full font-bold px-8 shadow-md border-none" onClick={() => handleDeleteRubric(r.id!)}>Xác nhận xóa</AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                                        <Button variant="outline" size="sm" className="rounded-full text-orange-600 border-orange-200 bg-orange-50/80 hover:bg-orange-100 hover:text-orange-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => { setSelectedRubricToShuffle(baseRubric); setShuffleCount(1); setShuffleModalOpen(true); }}>
+                                                            <Shuffle className="w-4 h-4 mr-1.5" /> Tạo Mã Đề
+                                                        </Button>
+                                                        <Button variant="outline" size="sm" className="rounded-full text-indigo-600 border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100 hover:text-indigo-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => handlePrintExam(baseRubric)}>
+                                                            <Printer className="w-4 h-4 mr-1.5" /> In Đề
+                                                        </Button>
+                                                        <Button variant="outline" size="sm" className="rounded-full text-emerald-600 border-emerald-200 bg-emerald-50/80 hover:bg-emerald-100 hover:text-emerald-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => handlePrintBubbleSheet(baseRubric)}>
+                                                            <ScanText className="w-4 h-4 mr-1.5" /> In Phiếu Tô
+                                                        </Button>
+                                                        <input type="file" accept="image/*" id={`omr-test-${baseRubric.id}`} className="hidden" onChange={(e) => handleOmrTest(e, baseRubric.id!)} />
+                                                        <Button variant="outline" size="sm" className="rounded-full text-fuchsia-600 border-fuchsia-200 bg-fuchsia-50/80 hover:bg-fuchsia-100 hover:text-fuchsia-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => document.getElementById(`omr-test-${baseRubric.id}`)?.click()}>
+                                                            <Camera className="w-4 h-4 mr-1.5" /> Chấm Thử
+                                                        </Button>
+                                                        <Button variant="outline" size="sm" className="rounded-full text-sky-600 border-sky-200 bg-sky-50/80 hover:bg-sky-100 hover:text-sky-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/thi-truc-tuyen/${baseRubric.id}`); toast.success("Đã copy link phòng thi!"); }}>
+                                                            <Globe className="w-4 h-4 mr-1.5" /> Copy Link
+                                                        </Button>
+                                                        <Button variant="outline" size="sm" className="rounded-full text-teal-600 border-teal-200 bg-teal-50/80 hover:bg-teal-100 hover:text-teal-700 font-bold shadow-sm backdrop-blur-sm" onClick={() => window.open(`/thi-truc-tuyen/${baseRubric.id}`, '_blank')}>
+                                                            <LayoutList className="w-4 h-4 mr-1.5" /> Thi Thử
+                                                        </Button>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-100 rounded-full w-10 h-10 transition-colors ml-1 shadow-sm bg-white/50 border border-white" title="Xóa">
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent className="bg-white/95 backdrop-blur-xl border-white rounded-[2rem] shadow-2xl">
+                                                                <AlertDialogHeader><AlertDialogTitle className="text-red-600 text-xl font-bold">Xóa đề thi này?</AlertDialogTitle></AlertDialogHeader>
+                                                                <AlertDialogFooter className="mt-4">
+                                                                    <AlertDialogCancel className="rounded-full font-bold px-6 border-slate-300">Hủy</AlertDialogCancel>
+                                                                    <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700 rounded-full font-bold px-8 shadow-md border-none" onClick={() => handleDeleteRubric(baseRubric.id!)}>Xác nhận xóa</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+
+                                            {/* 🔥 DÒNG MÃ ĐỀ CON (HIỂN THỊ KHI ĐƯỢC MỞ) */}
+                                            {isExpanded && children.map(child => (
+                                                <TableRow key={child.id} className="bg-slate-50/60 hover:bg-slate-100 transition-all duration-200 border-b border-slate-200/50">
+                                                    <TableCell className="font-medium text-slate-600 text-sm pl-[72px] max-w-[250px] truncate flex items-center">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-3"></div>
+                                                        <span title={child.title}>{child.title}</span>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span className="px-3 py-1 bg-white text-slate-500 font-medium rounded-md text-xs border border-slate-200/60 shadow-sm">{child.examType}</span>
+                                                    </TableCell>
+                                                    <TableCell className="text-center font-bold text-slate-500 text-sm">{child.questions.length}</TableCell>
+                                                    <TableCell className="text-center font-bold text-indigo-500 text-lg">{child.totalScore} đ</TableCell>
+                                                    <TableCell className="text-right pr-6">
+                                                        <div className="flex items-center justify-end flex-wrap gap-2 opacity-90">
+                                                            {/* Các nút chức năng cho mã đề con (Không có Edit và Tạo mã đề) */}
+                                                            <Button variant="outline" size="sm" className="rounded-full text-indigo-600 border-indigo-200 bg-white hover:bg-indigo-50 font-bold shadow-sm" onClick={() => handlePrintExam(child)}>
+                                                                <Printer className="w-3 h-3 mr-1" /> In
+                                                            </Button>
+                                                            <Button variant="outline" size="sm" className="rounded-full text-emerald-600 border-emerald-200 bg-white hover:bg-emerald-50 font-bold shadow-sm" onClick={() => handlePrintBubbleSheet(child)}>
+                                                                <ScanText className="w-3 h-3 mr-1" /> Phiếu
+                                                            </Button>
+                                                            <input type="file" accept="image/*" id={`omr-test-${child.id}`} className="hidden" onChange={(e) => handleOmrTest(e, child.id!)} />
+                                                            <Button variant="outline" size="sm" className="rounded-full text-fuchsia-600 border-fuchsia-200 bg-white hover:bg-fuchsia-50 font-bold shadow-sm" onClick={() => document.getElementById(`omr-test-${child.id}`)?.click()}>
+                                                                <Camera className="w-3 h-3 mr-1" /> Chấm
+                                                            </Button>
+                                                            <Button variant="outline" size="sm" className="rounded-full text-sky-600 border-sky-200 bg-white hover:bg-sky-50 font-bold shadow-sm" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/thi-truc-tuyen/${child.id}`); toast.success("Đã copy link!"); }}>
+                                                                <Globe className="w-3 h-3 mr-1" /> Link
+                                                            </Button>
+                                                            <Button variant="outline" size="sm" className="rounded-full text-teal-600 border-teal-200 bg-white hover:bg-teal-50 font-bold shadow-sm" onClick={() => window.open(`/thi-truc-tuyen/${child.id}`, '_blank')}>
+                                                                <LayoutList className="w-3 h-3 mr-1" /> Thi
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-8 h-8 ml-1" title="Xóa mã đề" onClick={() => {
+                                                                if (window.confirm("Bạn có chắc muốn xóa mã đề này?")) handleDeleteRubric(child.id!);
+                                                            }}>
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </React.Fragment>
+                                    )
+                                })}
                             </TableBody>
                         </Table>
                     </div>
 
-                    {filteredRubrics.length > 0 && (
+                    {filteredBaseRubrics.length > 0 && (
                         <div className="flex flex-col sm:flex-row items-center justify-between px-8 py-5 bg-slate-50/30 border-t border-slate-200/60 gap-4 backdrop-blur-md">
                             <div className="text-sm text-slate-500 font-medium text-center sm:text-left">
-                                Hiển thị <span className="font-bold text-slate-800">{(currentPage - 1) * itemsPerPage + 1}</span> đến <span className="font-bold text-slate-800">{Math.min(currentPage * itemsPerPage, filteredRubrics.length)}</span> trong tổng số <span className="font-bold text-indigo-600">{filteredRubrics.length}</span> kết quả
+                                Hiển thị <span className="font-bold text-slate-800">{(currentPage - 1) * itemsPerPage + 1}</span> đến <span className="font-bold text-slate-800">{Math.min(currentPage * itemsPerPage, filteredBaseRubrics.length)}</span> trong tổng số <span className="font-bold text-indigo-600">{filteredBaseRubrics.length}</span> kết quả
                             </div>
                             <div className="flex items-center space-x-2 bg-white/60 border border-white p-1.5 rounded-full shadow-sm backdrop-blur-sm">
                                 <Button variant="ghost" size="sm" className="rounded-full hover:bg-white" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="w-5 h-5" /></Button>
@@ -679,17 +685,15 @@ export default function RubricManager() {
                 <Dialog open={shuffleModalOpen} onOpenChange={setShuffleModalOpen}>
                     <DialogContent className="bg-white/95 backdrop-blur-xl max-w-md rounded-[2rem] border border-white/60 shadow-2xl overflow-hidden p-0">
                         <div className="bg-orange-50/80 p-6 border-b border-orange-100">
-                            {/* HEADER SIÊU GỌN */}
                             <DialogHeader className="p-4 bg-white/95 border-b border-slate-200 sticky top-0 z-50 backdrop-blur-md">
                                 <DialogTitle className="text-xl font-bold text-slate-800 flex items-center">
-                                    {editingId ? <Edit className="w-5 h-5 mr-2 text-blue-600" /> : <Plus className="w-5 h-5 mr-2 text-indigo-600" />}
-                                    {editingId ? 'Chỉnh Sửa Đề Thi' : 'Tạo Đề Thi Mới'}
+                                    <Shuffle className="w-5 h-5 mr-2 text-orange-600" /> Tạo Mã Đề Xáo Trộn
                                 </DialogTitle>
                             </DialogHeader>
                         </div>
                         <div className="p-6">
                             <div className="bg-slate-50/80 text-slate-700 p-5 rounded-2xl border border-slate-100 text-sm mb-6 font-medium leading-relaxed shadow-inner">
-                                Hệ thống sẽ lấy đề thi gốc <span className="font-bold bg-white px-2 py-0.5 rounded border border-slate-200 mx-1 shadow-sm text-indigo-700">{selectedRubricToShuffle?.title}</span>, tự động xáo trộn vị trí các câu hỏi và sinh ra các mã đề ngẫu nhiên (ví dụ: Mã đề 104, 205).
+                                Hệ thống sẽ lấy đề thi gốc <span className="font-bold bg-white px-2 py-0.5 rounded border border-slate-200 mx-1 shadow-sm text-indigo-700">{selectedRubricToShuffle?.title}</span>, tự động xáo trộn vị trí các câu hỏi và sinh ra các mã đề ngẫu nhiên làm đề con (ví dụ: Mã đề 104, 205).
                             </div>
                             <Label className="font-bold text-slate-700 text-base ml-1">Số lượng mã đề cần tạo:</Label>
                             <Input type="number" min="1" max="10" className="mt-3 font-black text-3xl text-indigo-700 h-16 text-center rounded-2xl bg-white/50 backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-indigo-500 border-2 border-slate-200 shadow-sm" value={shuffleCount} onChange={(e) => setShuffleCount(parseInt(e.target.value) || 1)} />
@@ -703,11 +707,10 @@ export default function RubricManager() {
                     </DialogContent>
                 </Dialog>
 
-                {/* 🔥 GIAO DIỆN MỚI: MODAL TẠO/SỬA ĐỀ THI SIÊU XỊN - GLASSMORPHISM */}
+                {/* MODAL TẠO/SỬA ĐỀ THI */}
                 <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                     <DialogContent className="!max-w-[95vw] lg:!max-w-6xl max-h-[90vh] overflow-y-auto bg-slate-50/95 backdrop-blur-xl p-0 border border-white/60 shadow-2xl rounded-[2rem]">
                         <div className="h-3 bg-gradient-to-r from-indigo-500 via-blue-500 to-sky-500 w-full sticky top-0 z-50"></div>
-
                         <DialogHeader className="p-6 md:p-8 pb-4 bg-white/80 border-b border-slate-200/60 sticky top-3 z-40 backdrop-blur-md">
                             <DialogTitle className="text-3xl font-black text-slate-800 tracking-tight flex items-center">
                                 {editingId ? <Edit className="w-7 h-7 mr-3 text-blue-600" /> : <Plus className="w-8 h-8 mr-3 text-indigo-600 bg-indigo-50 rounded-full p-1 border border-indigo-100" />}
@@ -756,7 +759,6 @@ export default function RubricManager() {
                                     <h3 className="font-black flex items-center text-slate-800 text-xl ml-2">
                                         <LayoutList className="w-6 h-6 mr-3 text-indigo-500" /> Danh sách câu hỏi ({newRubric.questions.length})
                                     </h3>
-                                    {/* THANH CÔNG CỤ SIÊU GỌN - Ép lên sát Header */}
                                     <div className="flex flex-wrap justify-between items-center gap-2 bg-slate-50/90 backdrop-blur-md p-2 px-4 rounded-lg border border-slate-200 shadow-sm sticky top-[60px] z-40 mx-4 md:mx-8">
                                         <h3 className="font-bold flex items-center text-slate-800 text-sm whitespace-nowrap">
                                             <LayoutList className="w-4 h-4 mr-2 text-indigo-500" /> Cấu Trúc Đề ({newRubric.questions.length})
@@ -764,13 +766,11 @@ export default function RubricManager() {
 
                                         <div className="flex flex-wrap items-center justify-end gap-2">
                                             <div className="flex bg-purple-50 p-1 rounded-md border border-purple-100">
-                                                {/* Đã thêm .xls, .xlsx và image/* vào accept */}
                                                 <input type="file" id="scan-exam" accept=".json, .txt, .pdf, .doc, .docx, .xls, .xlsx, image/*" className="hidden" onChange={handleScanExam} disabled={isScanning} />
                                                 <Button variant="ghost" size="sm" className="h-7 text-xs rounded text-purple-700 hover:bg-white font-bold" onClick={() => document.getElementById('scan-exam')?.click()} disabled={isScanning}>
                                                     {isScanning ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <ScanText className="w-3 h-3 mr-1" />} Đọc Đề AI
                                                 </Button>
 
-                                                {/* Đã thêm .xls, .xlsx và image/* vào accept */}
                                                 <input type="file" id="scan-answer" accept=".json, .txt, .pdf, .doc, .docx, .xls, .xlsx, image/*" className="hidden" onChange={handleScanAnswerKey} disabled={isScanning} />
                                                 <Button variant="ghost" size="sm" className="h-7 text-xs rounded text-fuchsia-700 hover:bg-white font-bold" onClick={() => document.getElementById('scan-answer')?.click()} disabled={isScanning}>
                                                     {isScanning ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />} Đọc Đáp Án
@@ -778,7 +778,6 @@ export default function RubricManager() {
                                             </div>
 
                                             <div className="flex bg-teal-50 p-1 rounded-md border border-teal-100">
-                                                {/* Nút Nhập Barem giờ đã nhận mọi thể loại file */}
                                                 <input type="file" id="import-rubric" accept=".json, .txt, .pdf, .doc, .docx, .xls, .xlsx, image/*" className="hidden" onChange={handleImportRubric} />
                                                 <Button variant="ghost" size="sm" className="h-7 text-xs rounded text-teal-700 hover:bg-white font-bold" onClick={() => document.getElementById('import-rubric')?.click()}>
                                                     <Upload className="w-3 h-3 mr-1" /> Nhập Barem
@@ -806,7 +805,6 @@ export default function RubricManager() {
                                             <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs font-bold">{newRubric.questions.length}</span>
                                         </div>
 
-                                        {/* Lưới Nút Bấm Câu Hỏi */}
                                         <div className="flex-1 overflow-y-auto pr-1 max-h-[350px] lg:max-h-[500px] scrollbar-thin scrollbar-thumb-slate-300">
                                             <div className="grid grid-cols-5 sm:grid-cols-8 lg:grid-cols-4 gap-2">
                                                 {newRubric.questions.map((q, idx) => (
@@ -814,8 +812,8 @@ export default function RubricManager() {
                                                         key={idx}
                                                         onClick={() => setActiveQuestionIndex(idx)}
                                                         className={`h-11 rounded-xl text-sm font-black transition-all flex items-center justify-center border-2 ${activeQuestionIndex === idx
-                                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105'
-                                                                : 'bg-white text-slate-500 border-slate-100 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm'
+                                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105'
+                                                            : 'bg-white text-slate-500 border-slate-100 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm'
                                                             }`}
                                                         title={`Câu ${q.order} - ${q.maxScore}đ`}
                                                     >
@@ -826,7 +824,7 @@ export default function RubricManager() {
                                         </div>
                                     </div>
 
-                                    {/* CỘT PHẢI: Khu vực làm việc siêu rộng (Chỉ hiển thị câu đang chọn) */}
+                                    {/* CỘT PHẢI: Khu vực làm việc siêu rộng */}
                                     <div className="w-full lg:w-3/4 flex flex-col">
                                         {newRubric.questions[activeQuestionIndex] && (() => {
                                             const idx = activeQuestionIndex;
@@ -873,7 +871,7 @@ export default function RubricManager() {
                                                         <div className="space-y-2 flex-1 flex flex-col">
                                                             <Label className="font-bold text-slate-700 text-sm">Nội dung đề bài</Label>
                                                             <textarea className="flex-1 w-full border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white rounded-xl p-4 focus:ring-2 focus:ring-indigo-500 outline-none resize-y font-medium text-slate-800 text-base shadow-inner min-h-[120px] transition-colors" placeholder="Nhập nội dung đoạn văn, câu hỏi..." value={q.content} onChange={e => updateQuestion(idx, 'content', e.target.value)} />
-                                                            {q.content.includes('$') && (
+                                                            {q.content.includes('\$') && (
                                                                 <div className="p-2 bg-blue-50 border border-blue-100 rounded-lg text-sm"><MathFormatter text={q.content} /></div>
                                                             )}
                                                         </div>
@@ -911,7 +909,6 @@ export default function RubricManager() {
                             </div>
                         </div>
 
-                        {/* FOOTER SIÊU GỌN - Đẩy sát mép dưới */}
                         <DialogFooter className="p-3 px-6 bg-white/95 backdrop-blur-md border-t border-slate-200 sticky bottom-0 z-50">
                             <div className="flex w-full justify-between items-center gap-4">
                                 <div className="font-bold text-slate-600 text-sm flex items-center">
@@ -927,40 +924,40 @@ export default function RubricManager() {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-            </div>
 
-            {/* MODAL KẾT QUẢ OMR - GLASSMORPHISM */}
-            <Dialog open={isResultModalOpen} onOpenChange={setIsResultModalOpen}>
-                <DialogContent className="max-w-3xl bg-slate-50/95 backdrop-blur-xl p-6 max-h-[85vh] overflow-y-auto rounded-[2rem] border border-white/60 shadow-2xl">
-                    <DialogHeader className="hidden"><DialogTitle>Kết quả</DialogTitle></DialogHeader>
-                    {omrResult && (
-                        <div className="bg-white/80 backdrop-blur-sm border border-white rounded-[2rem] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                            <div className="flex justify-between items-center p-6 border-b border-slate-200/60 bg-emerald-50/40">
-                                <div className="font-bold text-emerald-600 flex items-center text-xl"><CheckCircle2 className="w-7 h-7 mr-2" /> Kết Quả Quét Phiếu</div>
-                                <div className="text-4xl font-black text-indigo-700">{omrResult.totalScore} <span className="text-xl text-indigo-400 font-bold">đ</span></div>
-                            </div>
-                            <div className="p-6 md:p-8">
-                                <p className="text-slate-600 italic font-medium mb-6 bg-white/60 p-4 rounded-xl border border-slate-200/60 text-base leading-relaxed shadow-sm">"{omrResult.overallFeedback}"</p>
-                                <div className="space-y-3">
-                                    {omrResult.details?.map((detail: any, idx: number) => (
-                                        <div key={idx} className={`flex items-start text-sm p-4 rounded-xl border shadow-sm ${detail.awardedScore > 0 ? 'bg-emerald-50/40 border-emerald-100' : 'bg-red-50/40 border-red-100'}`}>
-                                            <ChevronRight className={`w-5 h-5 mr-3 shrink-0 ${detail.awardedScore > 0 ? 'text-emerald-500' : 'text-red-400'}`} />
-                                            <div>
-                                                <span className="font-bold text-slate-800 text-base">Câu {detail.questionNumber} ({detail.awardedScore}đ): </span>
-                                                <span className={`text-base ${detail.awardedScore > 0 ? "text-emerald-700 font-bold" : "text-red-600 font-medium"}`}>
-                                                    {detail.awardedScore > 0 ? "Chính xác." : `Sai. ${detail.aiFeedback}`}
-                                                </span>
+                {/* MODAL KẾT QUẢ OMR */}
+                <Dialog open={isResultModalOpen} onOpenChange={setIsResultModalOpen}>
+                    <DialogContent className="max-w-3xl bg-slate-50/95 backdrop-blur-xl p-6 max-h-[85vh] overflow-y-auto rounded-[2rem] border border-white/60 shadow-2xl">
+                        <DialogHeader className="hidden"><DialogTitle>Kết quả</DialogTitle></DialogHeader>
+                        {omrResult && (
+                            <div className="bg-white/80 backdrop-blur-sm border border-white rounded-[2rem] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                                <div className="flex justify-between items-center p-6 border-b border-slate-200/60 bg-emerald-50/40">
+                                    <div className="font-bold text-emerald-600 flex items-center text-xl"><CheckCircle2 className="w-7 h-7 mr-2" /> Kết Quả Quét Phiếu</div>
+                                    <div className="text-4xl font-black text-indigo-700">{omrResult.totalScore} <span className="text-xl text-indigo-400 font-bold">đ</span></div>
+                                </div>
+                                <div className="p-6 md:p-8">
+                                    <p className="text-slate-600 italic font-medium mb-6 bg-white/60 p-4 rounded-xl border border-slate-200/60 text-base leading-relaxed shadow-sm">"{omrResult.overallFeedback}"</p>
+                                    <div className="space-y-3">
+                                        {omrResult.details?.map((detail: any, idx: number) => (
+                                            <div key={idx} className={`flex items-start text-sm p-4 rounded-xl border shadow-sm ${detail.awardedScore > 0 ? 'bg-emerald-50/40 border-emerald-100' : 'bg-red-50/40 border-red-100'}`}>
+                                                <ChevronRight className={`w-5 h-5 mr-3 shrink-0 ${detail.awardedScore > 0 ? 'text-emerald-500' : 'text-red-400'}`} />
+                                                <div>
+                                                    <span className="font-bold text-slate-800 text-base">Câu {detail.questionNumber} ({detail.awardedScore}đ): </span>
+                                                    <span className={`text-base ${detail.awardedScore > 0 ? "text-emerald-700 font-bold" : "text-red-600 font-medium"}`}>
+                                                        {detail.awardedScore > 0 ? "Chính xác." : `Sai. ${detail.aiFeedback}`}
+                                                    </span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
+                        )}
+                    </DialogContent>
+                </Dialog>
 
-            {printingRubric && <div className="hidden print:block print:w-full"><BubbleSheet questions={printingRubric.questions} /></div>}
+                {printingRubric && <div className="hidden print:block print:w-full"><BubbleSheet questions={printingRubric.questions} /></div>}
+            </div>
         </>
     )
 }
