@@ -75,7 +75,29 @@ export default function RubricManager() {
 
     // 🔥 STATE QUẢN LÝ ĐÓNG/MỞ ACCORDION CHO TỪNG ĐỀ GỐC
     const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({})
+    // 🔥 STATE CHO MULTI-SELECT
+    const [selectedRubricIds, setSelectedRubricIds] = useState<string[]>([])
+    const [isDeletingBulk, setIsDeletingBulk] = useState(false)
 
+    // 🔥 HÀM XÓA NHIỀU ĐỀ CÙNG LÚC
+    const handleBulkDelete = async () => {
+        if (selectedRubricIds.length === 0) return;
+        const confirm = window.confirm(`CẢNH BÁO: Xóa đề gốc sẽ xóa luôn TẤT CẢ các mã đề con của nó.\nBạn có chắc chắn muốn xóa vĩnh viễn ${selectedRubricIds.length} mục đã chọn?`);
+        if (!confirm) return;
+
+        setIsDeletingBulk(true);
+        try {
+            await Promise.all(selectedRubricIds.map(id => axios.delete(`/api/Rubrics/${id}`)));
+            toast.success(`Đã xóa ${selectedRubricIds.length} đề thi/mã đề thành công!`);
+            setSelectedRubricIds([]); // Reset lại mảng chọn
+            fetchRubrics();
+        } catch (error) {
+            toast.error("Có lỗi xảy ra khi xóa hàng loạt!");
+            console.error(error);
+        } finally {
+            setIsDeletingBulk(false);
+        }
+    };
     const defaultRubric: Rubric = {
         title: '', examType: '15p',
         questions: [{ order: 1, questionType: 'Essay', content: '', options: '|||', correctAnswer: '', explanation: '', maxScore: 2.0 }],
@@ -151,8 +173,7 @@ export default function RubricManager() {
                     endDate: selectedRubricToShuffle.endDate,
                     maxAttempts: selectedRubricToShuffle.maxAttempts,
                     questions: finalQuestions,
-                    ParentId: selectedRubricToShuffle.id // 🔥 LIÊN KẾT VỚI ĐỀ GỐC
-                };
+                    parentId: selectedRubricToShuffle.id                };
 
                 await axios.post('/api/Rubrics', newRubricData);
             }
@@ -531,6 +552,17 @@ export default function RubricManager() {
                             </button>
                         ))}
                     </div>
+                    {/* 🔥 NÚT XÓA HÀNG LOẠT SẼ HIỆN LÊN KHI CÓ ÍT NHẤT 1 MỤC ĐƯỢC CHỌN */}
+                    {selectedRubricIds.length > 0 && (
+                        <Button
+                            onClick={handleBulkDelete}
+                            disabled={isDeletingBulk}
+                            className="bg-red-500 hover:bg-red-600 text-white rounded-full font-bold px-6 h-12 shadow-sm transition-all ml-auto w-full lg:w-auto"
+                        >
+                            {isDeletingBulk ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                            Xóa {selectedRubricIds.length} mục
+                        </Button>
+                    )}
                 </div>
 
                 {/* BẢNG DỮ LIỆU CHÍNH TÍCH HỢP TREE VIEW */}
@@ -539,6 +571,18 @@ export default function RubricManager() {
                         <Table>
                             <TableHeader className="bg-slate-100/50 backdrop-blur-md">
                                 <TableRow className="border-b border-slate-200/60 whitespace-nowrap">
+                                    <TableHead className="w-[50px] pl-6 py-5">
+                                        <input
+                                            type="checkbox"
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                            checked={currentBaseRubrics.length > 0 && selectedRubricIds.length === currentBaseRubrics.length}
+                                            onChange={(e) => {
+                                                // Nút này hiện tại chỉ chọn tất cả các ĐỀ GỐC đang hiển thị trên trang hiện tại
+                                                if (e.target.checked) setSelectedRubricIds(currentBaseRubrics.map(r => r.id!));
+                                                else setSelectedRubricIds([]);
+                                            }}
+                                        />
+                                    </TableHead>
                                     <TableHead className="font-bold text-slate-700 pl-8 py-5 min-w-[300px]">Tên Đề / Barem</TableHead>
                                     <TableHead className="font-bold text-slate-700 py-5">Loại Đề</TableHead>
                                     <TableHead className="text-center font-bold text-slate-700 py-5">Số Câu</TableHead>
@@ -548,9 +592,9 @@ export default function RubricManager() {
                             </TableHeader>
                             <TableBody>
                                 {isLoading ? (
-                                    <TableRow><TableCell colSpan={5} className="h-48 text-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto" /></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={6} className="h-48 text-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto" /></TableCell></TableRow>
                                 ) : currentBaseRubrics.length === 0 ? (
-                                    <TableRow><TableCell colSpan={5} className="h-48 text-center text-slate-500 font-medium text-base">Không tìm thấy đề thi nào.</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={6} className="h-48 text-center text-slate-500 font-medium text-base">Không tìm thấy đề thi nào.</TableCell></TableRow>
                                 ) : currentBaseRubrics.map(baseRubric => {
 
                                     // 🔥 LẤY CÁC MÃ ĐỀ CON CỦA ĐỀ GỐC NÀY TỪ LIST TỔNG
@@ -562,6 +606,18 @@ export default function RubricManager() {
                                         <React.Fragment key={baseRubric.id}>
                                             {/* DÒNG ĐỀ GỐC */}
                                             <TableRow className={`hover:bg-indigo-50/50 transition-all duration-200 border-b border-slate-100/60 ${isExpanded ? 'bg-indigo-50/30' : ''}`}>
+                                                <TableCell className="pl-6">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                        checked={baseRubric.id ? selectedRubricIds.includes(baseRubric.id) : false}
+                                                        onChange={(e) => {
+                                                            if (!baseRubric.id) return;
+                                                            if (e.target.checked) setSelectedRubricIds(prev => [...prev, baseRubric.id!]);
+                                                            else setSelectedRubricIds(prev => prev.filter(id => id !== baseRubric.id));
+                                                        }}
+                                                    />
+                                                </TableCell>
                                                 <TableCell className="font-bold text-slate-800 text-base pl-6 max-w-[250px] truncate flex items-center">
                                                     {/* Nút Xổ mã đề (Chỉ hiện nếu có đề con) */}
                                                     {hasChildren ? (
@@ -624,6 +680,18 @@ export default function RubricManager() {
                                             {/* 🔥 DÒNG MÃ ĐỀ CON (HIỂN THỊ KHI ĐƯỢC MỞ TRONG ACCORDION) */}
                                             {isExpanded && children.map(child => (
                                                 <TableRow key={child.id} className="bg-slate-50/60 hover:bg-slate-100 transition-all duration-200 border-b border-slate-200/50">
+                                                    <TableCell className="pl-6">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                            checked={child.id ? selectedRubricIds.includes(child.id) : false}
+                                                            onChange={(e) => {
+                                                                if (!child.id) return;
+                                                                if (e.target.checked) setSelectedRubricIds(prev => [...prev, child.id!]);
+                                                                else setSelectedRubricIds(prev => prev.filter(id => id !== child.id));
+                                                            }}
+                                                        />
+                                                    </TableCell>
                                                     <TableCell className="font-medium text-slate-600 text-sm pl-[72px] max-w-[250px] truncate flex items-center">
                                                         <div className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-3"></div>
                                                         <span title={child.title}>{child.title}</span>
