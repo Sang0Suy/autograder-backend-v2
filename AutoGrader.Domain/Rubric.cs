@@ -42,5 +42,6 @@ namespace AutoGrader.Domain.Entities
 
         // 🔥 CHÌA KHÓA CÁCH LY DỮ LIỆU
         public string CreatedBy { get; set; } = string.Empty; // Sẽ lưu Username của giáo viên
+        public string? ParentId { get; set; } = string.Empty;
     }
 }

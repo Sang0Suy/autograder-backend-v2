@@ -31,8 +31,8 @@ interface Rubric {
     startDate?: string | null;
     endDate?: string | null;
     maxAttempts?: number | null;
-    parentId?: string; // 🔥 THÊM TRƯỜNG NÀY ĐỂ NHẬN DIỆN MÃ ĐỀ CON
-    ParentId?: string;
+    parentId?: string | null; // Cho phép nhận null
+    ParentId?: string | null;
 }
 
 const MathFormatter = ({ text }: { text: string }) => {
@@ -349,9 +349,10 @@ export default function RubricManager() {
         try {
             setIsSaving(true)
             const payloadToSave = { ...newRubric };
-            if (!payloadToSave.startDate) payloadToSave.startDate = null;
-            if (!payloadToSave.endDate) payloadToSave.endDate = null;
-            if (!payloadToSave.parentId) payloadToSave.parentId = null;
+            // Gán thành chuỗi rỗng ("") hoặc undefined thay vì dùng null
+            if (!payloadToSave.startDate) payloadToSave.startDate = undefined;
+            if (!payloadToSave.endDate) payloadToSave.endDate = undefined;
+            if (!payloadToSave.parentId) payloadToSave.parentId = undefined;
 
             if (editingId) {
                 await axios.put(`/api/Rubrics/${editingId}`, payloadToSave)
