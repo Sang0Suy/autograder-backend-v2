@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react'
 import { Button } from "@/components/ui/button"
-import { LogOut, PlayCircle } from "lucide-react"
+import { LogOut, PlayCircle, UserCircle, Star } from "lucide-react" // Đã gom gọn các icon import
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import Login from './pages/Login'
@@ -11,40 +11,50 @@ import ClassManager from './components/features/ClassManager'
 import AccountManager from './components/features/AccountManager'
 import OnlineExam from './components/features/OnlineExam'
 import StudentDashboard from './components/features/StudentDashboard'
+import Home from './pages/Home'
+import ProfileModal from './components/features/ProfileModal'
+import FeedbackModal from './components/features/FeedbackModal'
 import { Toaster, toast } from 'sonner'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 type TabType = 'upload' | 'rubric' | 'history' | 'class' | 'account';
 
-function App() {
+// Giao diện chính sau khi đăng nhập
+function MainApp() {
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // 🔥 GOM TOÀN BỘ STATE LÊN ĐẦU ĐỂ QUẢN LÝ
     const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'))
     const [userRole, setUserRole] = useState(localStorage.getItem('role') || '')
-
     const [activeTab, setActiveTab] = useState<TabType>(() => {
         return (localStorage.getItem('currentTab') as TabType) || 'upload';
     })
+
+    // State xử lý phòng thi
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const isOnline = currentPath.startsWith('/thi-truc-tuyen/');
+    const routeId = isOnline ? currentPath.split('/thi-truc-tuyen/')[1] : '';
+    const [isOnlineExamMode] = useState(isOnline)
+    const [examTestId] = useState(routeId)
+    const [isExamModalOpen, setIsExamModalOpen] = useState(false);
+    const [examCode, setExamCode] = useState('');
+
+    // State xử lý Modal
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
     const switchTab = (tab: TabType) => {
         setActiveTab(tab);
         localStorage.setItem('currentTab', tab);
     }
 
-    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-    const isOnline = currentPath.startsWith('/thi-truc-tuyen/');
-    const routeId = isOnline ? currentPath.split('/thi-truc-tuyen/')[1] : '';
-
-    const [isOnlineExamMode] = useState(isOnline)
-    const [examTestId] = useState(routeId)
-
-    // 🔥 STATE CHO MODAL VÀO PHÒNG THI
-    const [isExamModalOpen, setIsExamModalOpen] = useState(false);
-    const [examCode, setExamCode] = useState('');
-
     const handleJoinExam = () => {
         if (!examCode.trim()) {
             toast.error("🚪 Cửa phòng thi đang khóa! Bạn phải nhập Mã phòng vào đã chứ! 😆");
             return;
         }
-        window.location.href = `/thi-truc-tuyen/${examCode.trim()}`;
+        navigate(`/thi-truc-tuyen/${examCode.trim()}`);
     }
 
     const handleLogout = () => {
@@ -55,14 +65,12 @@ function App() {
         setIsAuthenticated(false)
         setUserRole('')
         setActiveTab('upload')
+        navigate('/'); // Đăng xuất xong thì đá về Landing Page
     }
 
+    // Nếu chưa đăng nhập, đá ra trang Login
     if (!isAuthenticated) {
-        return <Login onLoginSuccess={() => {
-            setIsAuthenticated(true)
-            setUserRole(localStorage.getItem('role') || '')
-            setActiveTab('upload')
-        }} />
+        return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
     // NẾU ĐANG Ở ĐƯỜNG DẪN THI TRỰC TUYẾN
@@ -75,7 +83,7 @@ function App() {
                 <div className="relative z-10 p-4 md:p-8">
                     <div className="max-w-7xl mx-auto mb-6 flex justify-between items-center bg-white/60 backdrop-blur-md p-4 rounded-3xl border border-white shadow-sm">
                         <div className="font-black text-indigo-900 text-lg tracking-tight px-2">AutoGrader <span className="text-indigo-500">Online Exam</span></div>
-                        <Button variant="outline" className="rounded-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold px-6 shadow-sm" onClick={() => window.location.href = '/'}>
+                        <Button variant="outline" className="rounded-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold px-6 shadow-sm" onClick={() => navigate('/app')}>
                             Thoát khỏi phòng thi
                         </Button>
                     </div>
@@ -101,7 +109,7 @@ function App() {
                     <div className="absolute top-0 left-0 w-64 h-64 bg-gradient-to-br from-indigo-100 to-blue-50 rounded-full blur-3xl -z-10 opacity-70 -translate-x-1/3 -translate-y-1/3"></div>
 
                     <div className="flex items-center justify-between w-full xl:w-auto">
-                        <div>
+                        <div className="cursor-pointer" onClick={() => navigate('/')}>
                             <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
                                 AutoGrader System <span className="inline-block animate-bounce ml-1">🤖</span>
                             </h1>
@@ -173,9 +181,19 @@ function App() {
                                 Quản Lý Tài Khoản
                             </Button>
                         )}
+                        <div className="hidden xl:flex items-center pl-4 ml-2 border-l border-slate-200/60 gap-2">
+                            {/* 🔥 NÚT GÓP Ý */}
+                            <Button variant="ghost" onClick={() => setIsFeedbackModalOpen(true)} className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-full font-bold px-4">
+                                <Star className="w-4 h-4 mr-2" /> Đánh giá
+                            </Button>
 
-                        <div className="hidden xl:block pl-4 ml-2 border-l border-slate-200/60">
-                            <Button variant="ghost" onClick={handleLogout} className="text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-full font-bold px-5">
+                            {/* Nút Hồ Sơ Của Tôi */}
+                            <Button variant="ghost" onClick={() => setIsProfileModalOpen(true)} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-full font-bold px-4">
+                                <UserCircle className="w-4 h-4 mr-2" /> Hồ sơ
+                            </Button>
+
+                            {/* Nút Đăng Xuất */}
+                            <Button variant="ghost" onClick={handleLogout} className="text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-full font-bold px-4">
                                 <LogOut className="w-4 h-4 mr-2" /> Đăng xuất
                             </Button>
                         </div>
@@ -228,9 +246,55 @@ function App() {
                 </DialogContent>
             </Dialog>
 
+            {/* 🔥 XÓA BỚT 1 TOASTER BỊ DƯ Ở ĐÂY ĐỂ TRÁNH THÔNG BÁO HIỆN 2 LẦN */}
             <Toaster richColors position="top-right" />
+
+            {/* 🔥 MODAL HỒ SƠ & ĐỔI MẬT KHẨU */}
+            <ProfileModal
+                isOpen={isProfileModalOpen}
+                onClose={() => setIsProfileModalOpen(false)}
+                userData={{
+                    username: localStorage.getItem('ReferenceId') || 'User',
+                    role: userRole
+                }}
+            />
+
+            {/* 🔥 MODAL FEEDBACK */}
+            <FeedbackModal
+                isOpen={isFeedbackModalOpen}
+                onClose={() => setIsFeedbackModalOpen(false)}
+                userData={{
+                    username: localStorage.getItem('ReferenceId') || 'User',
+                    fullName: localStorage.getItem('FullName') || '', // Nếu có lưu FullName trong localStorage
+                    role: userRole
+                }}
+            />
         </div>
     )
+}
+
+// Bọc toàn bộ AppKiemDo trong Router
+function App() {
+    return (
+        <BrowserRouter>
+            <Routes>
+                {/* Trang chủ - Landing Page */}
+                <Route path="/" element={<Home />} />
+
+                {/* Trang Đăng nhập */}
+                <Route path="/login" element={<Login onLoginSuccess={() => { window.location.href = '/app'; }} />} />
+
+                {/* Giao diện chính của AppKiemDo */}
+                <Route path="/app" element={<MainApp />} />
+
+                {/* Phòng thi trực tuyến */}
+                <Route path="/thi-truc-tuyen/:id" element={<MainApp />} />
+
+                {/* 404 - Xử lý đường dẫn không hợp lệ */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+        </BrowserRouter>
+    );
 }
 
 export default App

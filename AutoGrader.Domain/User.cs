@@ -13,16 +13,23 @@ namespace AutoGrader.Domain.Entities
         public string Username { get; set; } = null!;
 
         [BsonElement("passwordHash")]
-        public string PasswordHash { get; set; } = null!; // Mật khẩu đã mã hóa
+        public string PasswordHash { get; set; } = null!;
 
         [BsonElement("fullName")]
         public string FullName { get; set; } = null!;
 
+        [BsonElement("email")]
+        public string? Email { get; set; } = string.Empty;
+
+        [BsonElement("phone")]
+        public string? Phone { get; set; } = string.Empty;
+
         [BsonElement("role")]
-        public string Role { get; set; } = null!; // Lưu: "Admin", "Teacher", hoặc "Student"
+        public string Role { get; set; } = null!;
 
         [BsonElement("referenceId")]
-        public string? ReferenceId { get; set; } // Nếu là Student, lưu Id của bảng Học Sinh để đối chiếu dữ liệu điểm
+        public string? ReferenceId { get; set; }
+
         public List<string> AllowedClasses { get; set; } = new List<string>();
     }
 }
