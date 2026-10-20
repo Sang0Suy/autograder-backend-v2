@@ -18,7 +18,6 @@ namespace AutoGrader.API.Controllers
         private readonly IConfiguration _configuration;
         private readonly IRepository<User> _userRepository;
 
-        // 🔥 ĐÃ XÓA IMongoClient ĐỂ KHÔNG BỊ CRASH DI VÀ ĐỒNG BỘ COLLECTION "User"
         public AuthController(IConfiguration configuration, IRepository<User> userRepository)
         {
             _configuration = configuration;
@@ -46,30 +45,44 @@ namespace AutoGrader.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            var users = await _userRepository.FindAsync(u => u.Username == request.Username);
-            var user = users.FirstOrDefault();
+            string safeUsername = request.Username?.Trim() ?? "";
+
+            // 🔥 Dùng GetAllAsync để loại bỏ hoàn toàn lỗi phân biệt hoa/thường của MongoDB
+            var users = await _userRepository.GetAllAsync();
+            var user = users.FirstOrDefault(u => !string.IsNullOrEmpty(u.Username) && u.Username.Equals(safeUsername, StringComparison.OrdinalIgnoreCase));
 
             if (user == null)
             {
-                if (request.Username == "admin" && request.Password == "123456")
+                if (safeUsername.ToLower() == "admin" && request.Password == "123456")
                 {
-                    var fallbackToken = GenerateJwtToken("admin_id", "admin", "Quản trị viên (Mặc định)", AppRoles.Admin, null);
-                    return Ok(new
+                    user = new User
                     {
-                        token = fallbackToken,
-                        role = AppRoles.Admin,
-                        username = "admin",
-                        fullName = "Quản trị viên (Mặc định)",
-                        message = "Đăng nhập Admin mặc định thành công!"
-                    });
+                        Username = "admin",
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                        FullName = "Quản trị viên",
+                        Role = AppRoles.Admin
+                    };
+                    await _userRepository.CreateAsync(user);
+
+                    // Lấy lại data từ DB để đảm bảo Object có ID chính thức
+                    users = await _userRepository.GetAllAsync();
+                    user = users.FirstOrDefault(u => !string.IsNullOrEmpty(u.Username) && u.Username.Equals("admin", StringComparison.OrdinalIgnoreCase)) ?? user;
                 }
-                return Unauthorized("Tài khoản không tồn tại!");
+                else
+                {
+                    return Unauthorized("Tài khoản không tồn tại!");
+                }
+            }
+            else
+            {
+                bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+                if (!isPasswordValid) return Unauthorized("Mật khẩu không chính xác!");
             }
 
-            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
-            if (!isPasswordValid) return Unauthorized("Mật khẩu không chính xác!");
+            // Phòng hờ trường hợp CreateAsync chưa kịp map ID, ta gán tạm Guid để tạo Token không bị crash
+            var safeId = string.IsNullOrEmpty(user.Id) ? Guid.NewGuid().ToString() : user.Id;
+            var token = GenerateJwtToken(safeId, user.Username, user.FullName, user.Role, user.ReferenceId);
 
-            var token = GenerateJwtToken(user.Id!, user.Username, user.FullName, user.Role, user.ReferenceId);
             return Ok(new
             {
                 token,
@@ -90,7 +103,7 @@ namespace AutoGrader.API.Controllers
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
             var users = await _userRepository.GetAllAsync();
-            if (users.Any(u => u.Username == request.Username))
+            if (users.Any(u => u.Username.Equals(request.Username?.Trim(), StringComparison.OrdinalIgnoreCase)))
             {
                 return BadRequest("Tên đăng nhập này đã được sử dụng!");
             }
@@ -106,7 +119,7 @@ namespace AutoGrader.API.Controllers
 
             var newUser = new User
             {
-                Username = request.Username,
+                Username = request.Username!.Trim(),
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 FullName = request.FullName,
                 Role = request.Role,
@@ -150,7 +163,7 @@ namespace AutoGrader.API.Controllers
         }
 
         // ==========================================
-        // 3. LẤY DANH SÁCH & 4. XÓA TÀI KHOẢN
+        // 3. LẤY DANH SÁCH TÀI KHOẢN
         // ==========================================
         [HttpGet("users")]
         [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.Teacher}")]
@@ -197,17 +210,19 @@ namespace AutoGrader.API.Controllers
         }
 
         // ==========================================
-        // 5. ĐỔI MẬT KHẨU (DÙNG IRepository<User>)
+        // 5. ĐỔI MẬT KHẨU
         // ==========================================
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
         {
-            var users = await _userRepository.FindAsync(u => u.Username == dto.Username);
-            var user = users.FirstOrDefault();
+            string safeUsername = dto.Username?.Trim() ?? "";
+            var users = await _userRepository.GetAllAsync();
+            var user = users.FirstOrDefault(u => !string.IsNullOrEmpty(u.Username) && u.Username.Equals(safeUsername, StringComparison.OrdinalIgnoreCase));
 
             if (user == null)
             {
-                return NotFound(new { message = "Không tìm thấy tài khoản trong cơ sở dữ liệu!" });
+                // 🔥 In thẳng tên Username ra để dễ bắt bệnh nếu React gửi sai
+                return NotFound(new { message = $"Không tìm thấy tài khoản '{safeUsername}' trong Database!" });
             }
 
             bool isPasswordCorrect = BCrypt.Net.BCrypt.Verify(dto.OldPassword, user.PasswordHash);
@@ -228,12 +243,13 @@ namespace AutoGrader.API.Controllers
         [HttpPut("profile")]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
         {
-            var users = await _userRepository.FindAsync(u => u.Username == dto.Username);
-            var user = users.FirstOrDefault();
+            string safeUsername = dto.Username?.Trim() ?? "";
+            var users = await _userRepository.GetAllAsync();
+            var user = users.FirstOrDefault(u => !string.IsNullOrEmpty(u.Username) && u.Username.Equals(safeUsername, StringComparison.OrdinalIgnoreCase));
 
             if (user == null)
             {
-                return NotFound(new { message = "Không tìm thấy tài khoản!" });
+                return NotFound(new { message = $"Không tìm thấy tài khoản '{safeUsername}' trong Database!" });
             }
 
             user.FullName = dto.FullName;
