@@ -156,6 +156,7 @@ export default function ProfileModal({ isOpen, onClose, userData }: ProfileModal
     return (
         <Dialog open={isOpen} onOpenChange={handleOpenChange}>
             <DialogContent className="sm:max-w-[500px] bg-white/95 backdrop-blur-xl p-0 overflow-hidden rounded-[2rem] border-white/60 shadow-2xl">
+                <DialogTitle className="sr-only">Hồ sơ cá nhân và Đổi mật khẩu</DialogTitle>
                 <div className="flex border-b border-slate-100 bg-slate-50/50">
                     <button
                         type="button"
