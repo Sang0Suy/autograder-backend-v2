@@ -23,8 +23,8 @@ export default function FeedbackModal({ isOpen, onClose, userData }: FeedbackMod
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async () => {
-        if (content.trim().length < 10) {
-            return toast.warning("Vui lòng nhập cảm nhận ít nhất 10 ký tự nhé!");
+        if (!content.trim()) {
+            return toast.warning("Vui lòng nhập nội dung đánh giá nhé!");
         }
 
         setIsSubmitting(true);

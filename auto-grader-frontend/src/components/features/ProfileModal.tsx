@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -155,7 +155,7 @@ export default function ProfileModal({ isOpen, onClose, userData }: ProfileModal
 
     return (
         <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-            <DialogContent className="sm:max-w-[500px] bg-white/95 backdrop-blur-xl p-0 overflow-hidden rounded-[2rem] border-white/60 shadow-2xl">
+            <DialogContent aria-describedby={undefined} className="sm:max-w-[500px] bg-white/95 backdrop-blur-xl p-0 overflow-hidden rounded-[2rem] border-white/60 shadow-2xl">
                 <DialogTitle className="sr-only">Hồ sơ cá nhân và Đổi mật khẩu</DialogTitle>
                 <div className="flex border-b border-slate-100 bg-slate-50/50">
                     <button
