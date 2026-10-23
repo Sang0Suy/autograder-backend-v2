@@ -711,8 +711,8 @@ export default function GradingHistory() {
                                                                     size="sm"
                                                                     onClick={() => setTutorContext({
                                                                         questionNumber: qNum,
-                                                                        studentAnswer: detail.recognizedText || detail.RecognizedText,
-                                                                        aiFeedback: aiFeed
+                                                                        studentAnswer: (detail.recognizedText || detail.RecognizedText || "") as string,
+                                                                        aiFeedback: (aiFeed || "") as string
                                                                     })}
                                                                     className="mt-3 rounded-full text-indigo-600 hover:bg-indigo-50 border-indigo-200 shadow-sm font-bold w-fit transition-all"
                                                                 >
