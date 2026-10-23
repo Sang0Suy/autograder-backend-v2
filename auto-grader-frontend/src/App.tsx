@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react'
 import { Button } from "@/components/ui/button"
-import { LogOut, PlayCircle, UserCircle, Star } from "lucide-react" // Đã gom gọn các icon import
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { LogOut, PlayCircle, UserCircle, Star, Cloud } from "lucide-react" // Đã gom gọn các icon import
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import Login from './pages/Login'
 import UploadStation from './components/features/UploadStation'
@@ -20,7 +20,8 @@ import PlagiarismDashboard from './components/features/PlagiarismDashboard'
 import NotificationBell from './components/features/NotificationBell'; // Sửa đường dẫn nếu bạn để ở thư mục khác
 import { ShieldAlert } from 'lucide-react' // Thêm icon này vào danh sách import lucide-react
 import OfflineScanner from './components/features/OfflineScanner';
-type TabType = 'upload' | 'rubric' | 'history' | 'class' | 'account' | 'plagiarism' | 'scanner';
+import EcosystemSync from './components/features/EcosystemSync';
+type TabType = 'upload' | 'rubric' | 'history' | 'class' | 'account' | 'plagiarism' | 'scanner' | 'sync';
 
 // Giao diện chính sau khi đăng nhập
 function MainApp() {
@@ -201,6 +202,15 @@ function MainApp() {
                         >
                             📸 Máy Quét Offline
                         </Button>
+                        {userRole !== 'Student' && (
+                            <Button
+                                onClick={() => switchTab('sync')}
+                                className={`rounded-full px-6 font-bold shadow-sm transition-all duration-300 ${activeTab === 'sync' ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md transform scale-105 border-none' : 'bg-white/60 text-slate-600 hover:bg-white border-white'}`}
+                                variant={activeTab === 'sync' ? 'default' : 'outline'}
+                            >
+                                <Cloud className="w-4 h-4 mr-2" /> Đồng Bộ LMS
+                            </Button>
+                        )}
                         <div className="hidden xl:flex items-center pl-4 ml-2 border-l border-slate-200/60 gap-2">
                             {/* 🔥 NÚT GÓP Ý */}
                             <Button variant="ghost" onClick={() => setIsFeedbackModalOpen(true)} className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-full font-bold px-4">
@@ -233,6 +243,7 @@ function MainApp() {
                     {activeTab === 'plagiarism' && userRole !== 'Student' && <PlagiarismDashboard />}
                     {activeTab === 'account' && userRole !== 'Student' && <AccountManager />}
                     {activeTab === 'scanner' && <OfflineScanner />}
+                    {activeTab === 'sync' && userRole !== 'Student' && <EcosystemSync />}
                 </div>
             </div>
 
