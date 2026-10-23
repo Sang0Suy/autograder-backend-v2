@@ -16,8 +16,11 @@ import ProfileModal from './components/features/ProfileModal'
 import FeedbackModal from './components/features/FeedbackModal'
 import { Toaster, toast } from 'sonner'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
-
-type TabType = 'upload' | 'rubric' | 'history' | 'class' | 'account';
+import PlagiarismDashboard from './components/features/PlagiarismDashboard'
+import NotificationBell from './components/features/NotificationBell'; // Sửa đường dẫn nếu bạn để ở thư mục khác
+import { ShieldAlert } from 'lucide-react' // Thêm icon này vào danh sách import lucide-react
+import OfflineScanner from './components/features/OfflineScanner';
+type TabType = 'upload' | 'rubric' | 'history' | 'class' | 'account' | 'plagiarism' | 'scanner';
 
 // Giao diện chính sau khi đăng nhập
 function MainApp() {
@@ -181,12 +184,29 @@ function MainApp() {
                                 Quản Lý Tài Khoản
                             </Button>
                         )}
+                        {/* NÚT KIỂM DUYỆT (CHỈ GIÁO VIÊN/ADMIN THẤY) */}
+                        {userRole !== 'Student' && (
+                            <Button
+                                onClick={() => switchTab('plagiarism')}
+                                className={`rounded-full px-6 font-bold shadow-sm transition-all duration-300 ${activeTab === 'plagiarism' ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-md transform scale-105 border-none' : 'bg-white/60 text-slate-600 hover:bg-red-50 hover:text-red-600 border-white'}`}
+                                variant={activeTab === 'plagiarism' ? 'default' : 'outline'}
+                            >
+                                <ShieldAlert className={`w-4 h-4 mr-2 ${activeTab === 'plagiarism' ? 'text-white' : 'text-red-500'}`} /> Duyệt Vi Phạm
+                            </Button>
+                        )}
+                        <Button
+                            onClick={() => switchTab('scanner')}
+                            className={`rounded-full px-6 font-bold shadow-sm transition-all duration-300 ${activeTab === 'scanner' ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md transform scale-105 border-none' : 'bg-white/60 text-slate-600 hover:bg-white border-white'}`}
+                            variant={activeTab === 'scanner' ? 'default' : 'outline'}
+                        >
+                            📸 Máy Quét Offline
+                        </Button>
                         <div className="hidden xl:flex items-center pl-4 ml-2 border-l border-slate-200/60 gap-2">
                             {/* 🔥 NÚT GÓP Ý */}
                             <Button variant="ghost" onClick={() => setIsFeedbackModalOpen(true)} className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-full font-bold px-4">
                                 <Star className="w-4 h-4 mr-2" /> Đánh giá
                             </Button>
-
+                            <NotificationBell />
                             {/* Nút Hồ Sơ Của Tôi */}
                             <Button variant="ghost" onClick={() => setIsProfileModalOpen(true)} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-full font-bold px-4">
                                 <UserCircle className="w-4 h-4 mr-2" /> Hồ sơ
@@ -210,8 +230,9 @@ function MainApp() {
                     {/* 🔥 TÁCH BIỆT GIAO DIỆN HỌC SINH VÀ GIÁO VIÊN Ở TAB CLASS */}
                     {activeTab === 'class' && userRole === 'Student' && <StudentDashboard />}
                     {activeTab === 'class' && userRole !== 'Student' && <ClassManager />}
-
+                    {activeTab === 'plagiarism' && userRole !== 'Student' && <PlagiarismDashboard />}
                     {activeTab === 'account' && userRole !== 'Student' && <AccountManager />}
+                    {activeTab === 'scanner' && <OfflineScanner />}
                 </div>
             </div>
 

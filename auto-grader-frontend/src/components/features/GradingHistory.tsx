@@ -2,14 +2,16 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import * as XLSX from 'xlsx'
-import { Loader2, Image as ImageIcon, Download, Search, ChevronLeft, ChevronRight, CheckCircle2, FileText, PlayCircle, AlertTriangle, ShieldAlert } from "lucide-react"
+import { Loader2, Image as ImageIcon, Download, Search, ChevronLeft, ChevronRight, CheckCircle2, FileText, PlayCircle, AlertTriangle, ShieldAlert, Bot } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { toast } from 'sonner'
 import GradingAnalytics from './GradingAnalytics';
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import axios from "axios"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-
+import AITutorModal from './AITutorModal'; // Import Component vừa tạo
+import html2pdf from 'html2pdf.js';
+import VoiceRecorder from '@/components/ui/VoiceRecorder';
 // 🔥 ĐỊNH NGHĨA KIỂU DỮ LIỆU
 interface GradingDetail {
     questionNumber?: number;
@@ -24,6 +26,8 @@ interface GradingDetail {
     TeacherCorrection?: string;
     isTeacherModified?: boolean;
     IsTeacherModified?: boolean;
+    recognizedText?: string;
+    RecognizedText?: string;
 }
 
 interface StudentResult {
@@ -36,7 +40,8 @@ interface StudentResult {
     gradedAt?: string; GradedAt?: string;
     gradingDetails?: GradingDetail[];
     GradingDetails?: GradingDetail[];
-
+    overallFeedback?: string;
+    OverallFeedback?: string;
     // 🔥 BỔ SUNG CÁC TRƯỜNG DỮ LIỆU TỪ AI
     confidenceScore?: number; ConfidenceScore?: number;
     needsManualReview?: boolean; NeedsManualReview?: boolean;
@@ -49,6 +54,11 @@ interface Rubric {
     title: string;
     examType?: string;
 }
+interface TutorContextData {
+    questionNumber: number;
+    studentAnswer: string;
+    aiFeedback: string;
+}
 
 export default function GradingHistory() {
     const [history, setHistory] = useState<StudentResult[]>([])
@@ -60,6 +70,36 @@ export default function GradingHistory() {
     const userRole = localStorage.getItem('role') || '';
     const myStudentCode = localStorage.getItem('ReferenceId') || '';
     const [currentPage, setCurrentPage] = useState(1)
+    const [isResolving, setIsResolving] = useState(false);
+    const [feedbackText, setFeedbackText] = useState("");
+    const handleResolveFlag = async (action: 'penalize' | 'ignore') => {
+        if (!selectedResult || (!selectedResult.id && !selectedResult.Id)) return;
+        const resultId = selectedResult.id || selectedResult.Id;
+
+        const confirmMsg = action === 'penalize'
+            ? "⚠️ Bạn có chắc chắn muốn hủy kết quả và phạt 0 điểm bài làm này vì gian lận?"
+            : "✅ Bỏ qua cảnh báo và công nhận bài làm này hợp lệ?";
+
+        if (!window.confirm(confirmMsg)) return;
+
+        setIsResolving(true);
+        try {
+            const config = { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } };
+            const res = await axios.put(`/api/Grading/${resultId}/resolve-flag`, { Action: action }, config);
+
+            toast.success(res.data.message);
+
+            // Cập nhật lại UI ngay lập tức
+            const updatedData = res.data.data;
+            setSelectedResult(updatedData);
+            setHistory(prev => prev.map(h => ((h.id || h.Id) === resultId ? updatedData : h)));
+        } catch (error) {
+            toast.error("Lỗi khi xử lý cảnh báo!");
+            console.error(error);
+        } finally {
+            setIsResolving(false);
+        }
+    };
     const itemsPerPage = 10
 
     const getRubricTitle = (testId: string) => {
@@ -230,7 +270,106 @@ export default function GradingHistory() {
             window.open(fileUrl, '_blank');
         }
     };
+    const exportPdfReport = () => {
+        if (!selectedResult) return;
 
+        toast.info("⏳ Đang tạo báo cáo PDF. Vui lòng đợi...");
+
+        // 1. Lấy thông tin cần thiết
+        const studentName = selectedResult.studentName || selectedResult.StudentName || "Khách";
+        const testTitle = getRubricTitle(selectedResult.testId || selectedResult.TestId || "");
+        const totalScore = selectedResult.totalScore ?? selectedResult.TotalScore ?? 0;
+        const aiFeedback = selectedResult.overallFeedback || selectedResult.OverallFeedback || "Đã hoàn thành bài kiểm tra.";
+        // 2. Tạo một khung HTML ảo (Virtual DOM) để thiết kế giao diện tờ báo cáo
+        const reportElement = document.createElement('div');
+        reportElement.innerHTML = `
+            <div style="padding: 40px; font-family: 'Times New Roman', serif; color: #1e293b; background: white;">
+                <!-- Header -->
+                <div style="text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px;">
+                    <h1 style="font-size: 28px; color: #4338ca; margin: 0; text-transform: uppercase; letter-spacing: 1px;">HỆ THỐNG ĐÁNH GIÁ AUTOGRADER</h1>
+                    <h2 style="font-size: 22px; color: #334155; margin: 10px 0 0 0;">PHIẾU BÁO CÁO KẾT QUẢ HỌC TẬP</h2>
+                </div>
+
+                <!-- Thông tin học sinh -->
+                <div style="display: flex; justify-content: space-between; background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #e2e8f0;">
+                    <div style="line-height: 1.8;">
+                        <div style="font-size: 16px;"><b>Họ và tên học sinh:</b> ${studentName}</div>
+                        <div style="font-size: 16px;"><b>Mã bài thi:</b> ${selectedResult.testId || selectedResult.TestId || "N/A"}</div>
+                        <div style="font-size: 16px;"><b>Tên bài thi:</b> ${testTitle}</div>
+                        <div style="font-size: 16px;"><b>Thời gian chấm:</b> ${formatDate(selectedResult.gradedAt || selectedResult.GradedAt)}</div>
+                    </div>
+                    <div style="text-align: center; background: white; padding: 15px 30px; border-radius: 12px; border: 2px solid #4338ca; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                        <div style="font-size: 14px; font-weight: bold; color: #64748b; text-transform: uppercase;">Tổng Điểm</div>
+                        <div style="font-size: 48px; font-weight: 900; color: #4338ca; line-height: 1;">${totalScore}</div>
+                    </div>
+                </div>
+
+                <!-- Nhận xét tổng quan của AI -->
+                <div style="margin-bottom: 30px;">
+                    <h3 style="font-size: 18px; color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; margin-bottom: 15px;">1. NHẬN XÉT TỔNG QUAN TỪ TRỢ GIẢNG AI</h3>
+                    <div style="background: #eef2ff; padding: 15px; border-left: 4px solid #6366f1; border-radius: 0 8px 8px 0; font-size: 15px; font-style: italic; line-height: 1.6;">
+                        "${aiFeedback}"
+                    </div>
+                </div>
+
+                <!-- Bảng điểm chi tiết -->
+                <div>
+                    <h3 style="font-size: 18px; color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; margin-bottom: 15px;">2. PHÂN TÍCH ĐIỂM SỐ CHI TIẾT TỪNG CÂU</h3>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                        <thead>
+                            <tr style="background-color: #f1f5f9;">
+                                <th style="border: 1px solid #cbd5e1; padding: 12px; text-align: center; width: 10%;">Câu</th>
+                                <th style="border: 1px solid #cbd5e1; padding: 12px; text-align: left; width: 30%;">Câu trả lời của học sinh</th>
+                                <th style="border: 1px solid #cbd5e1; padding: 12px; text-align: left; width: 50%;">AI Phân tích & Gợi ý</th>
+                                <th style="border: 1px solid #cbd5e1; padding: 12px; text-align: center; width: 10%;">Điểm</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${(selectedResult.gradingDetails || selectedResult.GradingDetails || []).map((d: GradingDetail, i: number) => {
+            const qNum = d.questionNumber ?? d.QuestionNumber ?? (i + 1);
+            const aScore = d.finalScore ?? d.FinalScore ?? d.awardedScore ?? d.AwardedScore ?? 0;
+            const isCorrect = aScore > 0;
+            const feedback = d.teacherCorrection || d.TeacherCorrection || d.aiFeedback || d.AIFeedback || "";
+
+            return `
+                               <tr>
+                                <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center; font-weight: bold;">${qNum}</td>
+                                <td style="border: 1px solid #cbd5e1; padding: 10px; color: ${isCorrect ? '#15803d' : '#b91c1c'};">${d.recognizedText || d.RecognizedText || 'Bỏ trống'}</td>
+                                <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 14px; color: #475569;">${feedback}</td>
+                                <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center; font-weight: bold; color: ${isCorrect ? '#15803d' : '#b91c1c'};">${aScore}</td>
+                            </tr>
+                                `;
+        }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Lời khuyên cuối trang -->
+                <div style="text-align: center; margin-top: 50px; padding-top: 20px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 14px;">
+                    <p>Báo cáo này được tự động tạo và phân tích bởi Hệ thống Trí tuệ nhân tạo AutoGrader.</p>
+                    <p>Quý phụ huynh vui lòng theo dõi và đồng hành cùng sự tiến bộ của con em mình.</p>
+                </div>
+            </div>
+        `;
+
+        // 3. Cấu hình cho thư viện html2pdf
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const opt: Record<string, any> = {
+            margin: 10,
+            filename: `Bao_Cao_Diem_${studentName.replace(/\s+/g, '_')}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        // 4. Sinh file và tự động tải xuống
+        html2pdf().set(opt).from(reportElement).save().then(() => {
+            toast.success("✅ Đã xuất báo cáo PDF thành công!");
+        }).catch(() => {
+            toast.error("❌ Có lỗi xảy ra khi tạo PDF.");
+        });
+    };
+    const [tutorContext, setTutorContext] = useState<TutorContextData | null>(null);
     return (
         <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-700 p-2 md:p-4 relative min-h-screen">
             <div className="fixed inset-0 -z-20 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-50 via-slate-50 to-teal-50/50 pointer-events-none"></div>
@@ -423,24 +562,65 @@ export default function GradingHistory() {
                                     Chi Tiết Bài Làm - {(selectedResult?.studentName || selectedResult?.StudentName)}
                                 </DialogTitle>
 
-                                {/* HIỂN THỊ CẢNH BÁO CHI TIẾT */}
+                                {/* HIỂN THỊ CẢNH BÁO CHI TIẾT (ĐÃ NÂNG CẤP NÚT BẤM) */}
                                 {(selectedResult?.isPlagiarized || selectedResult?.IsPlagiarized) && (
-                                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start">
-                                        <ShieldAlert className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
-                                        <div>
-                                            <h4 className="text-red-800 font-bold text-sm">Cảnh báo Đạo văn!</h4>
-                                            <p className="text-red-600 text-xs mt-0.5">{selectedResult?.plagiarismNote || selectedResult?.PlagiarismNote}</p>
+                                    <div className="mt-3 p-4 bg-red-50 border border-red-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                                        <div className="flex items-start">
+                                            <ShieldAlert className="w-5 h-5 text-red-600 mr-2 mt-0.5 shrink-0" />
+                                            <div>
+                                                <h4 className="text-red-800 font-black text-sm uppercase tracking-wide">Cảnh báo Đạo văn!</h4>
+                                                <p className="text-red-600 text-sm mt-0.5 font-medium leading-snug">{selectedResult?.plagiarismNote || selectedResult?.PlagiarismNote}</p>
+                                            </div>
                                         </div>
+                                        {userRole !== 'Student' && (
+                                            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                                                <Button
+                                                    variant="outline" size="sm" disabled={isResolving} onClick={() => handleResolveFlag('ignore')}
+                                                    className="bg-white hover:bg-red-100 text-slate-600 border-red-200 font-bold w-full sm:w-auto h-9"
+                                                >
+                                                    Bỏ qua
+                                                </Button>
+                                                <Button
+                                                    size="sm" disabled={isResolving} onClick={() => handleResolveFlag('penalize')}
+                                                    className="bg-red-600 hover:bg-red-700 text-white shadow-md font-bold w-full sm:w-auto h-9 border-none"
+                                                >
+                                                    Phạt 0 điểm
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
+
                                 {!(selectedResult?.isPlagiarized || selectedResult?.IsPlagiarized) && (selectedResult?.needsManualReview || selectedResult?.NeedsManualReview) && (
-                                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center">
-                                        <AlertTriangle className="w-5 h-5 text-amber-600 mr-2" />
-                                        <span className="text-amber-800 font-bold text-sm">AI chấm điểm với độ tin cậy thấp ({selectedResult?.confidenceScore || selectedResult?.ConfidenceScore}%). Vui lòng giáo viên duyệt lại!</span>
+                                    <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                                        <div className="flex items-start">
+                                            <AlertTriangle className="w-5 h-5 text-amber-600 mr-2 shrink-0 mt-0.5" />
+                                            <div>
+                                                <h4 className="text-amber-800 font-black text-sm uppercase tracking-wide">Cần duyệt lại</h4>
+                                                <p className="text-amber-700 font-medium text-sm mt-0.5 leading-snug">AI chấm điểm với độ tin cậy thấp ({selectedResult?.confidenceScore || selectedResult?.ConfidenceScore}%).</p>
+                                            </div>
+                                        </div>
+                                        {userRole !== 'Student' && (
+                                            <div className="flex items-center shrink-0 w-full sm:w-auto">
+                                                <Button
+                                                    size="sm" disabled={isResolving} onClick={() => handleResolveFlag('ignore')}
+                                                    className="bg-amber-500 hover:bg-amber-600 text-white shadow-md font-bold w-full sm:w-auto h-9 border-none"
+                                                >
+                                                    Đã duyệt - An toàn
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
-
+                            {/* 🔥 NÚT XUẤT PDF MỚI THÊM VÀO ĐÂY */}
+                            <Button
+                                onClick={exportPdfReport}
+                                variant="outline"
+                                className="bg-white hover:bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm font-bold h-12 px-5 rounded-2xl transition-all"
+                            >
+                                <Download className="w-4 h-4 mr-2" /> In Báo Cáo PDF
+                            </Button>
                             {/* KHỐI ĐIỂM SỐ NỔI BẬT */}
                             <div className="bg-gradient-to-br from-indigo-600 to-blue-600 text-white px-8 py-4 rounded-2xl shadow-lg flex flex-col items-center justify-center min-w-[140px]">
                                 <span className="font-black text-4xl leading-none">{selectedResult?.totalScore ?? selectedResult?.TotalScore}</span>
@@ -525,6 +705,20 @@ export default function GradingHistory() {
                                                                     {displayScore} đ
                                                                 </div>
                                                             </div>
+                                                            {userRole === 'Student' && !isCorrect && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => setTutorContext({
+                                                                        questionNumber: qNum,
+                                                                        studentAnswer: detail.recognizedText || detail.RecognizedText,
+                                                                        aiFeedback: aiFeed
+                                                                    })}
+                                                                    className="mt-3 rounded-full text-indigo-600 hover:bg-indigo-50 border-indigo-200 shadow-sm font-bold w-fit transition-all"
+                                                                >
+                                                                    <Bot className="w-4 h-4 mr-2" /> Hỏi Gia sư AI vì sao sai
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )
@@ -575,18 +769,48 @@ export default function GradingHistory() {
                     </div>
 
                     {/* 🔥 FOOTER MODAL (Cố định ở đáy - shrink-0) */}
-                    <div className="shrink-0 p-4 md:p-5 bg-white/95 backdrop-blur-md border-t border-slate-200/60 flex flex-wrap justify-end gap-3 rounded-b-3xl">
-                        {selectedResult && (selectedResult.paperImageUrl !== "💻 Thi Trực Tuyến (Online Exam)" && selectedResult.PaperImageUrl !== "💻 Thi Trực Tuyến (Online Exam)") ? (
-                            <Button variant="outline" className="rounded-full font-bold px-6 border-slate-300 h-11 text-sm w-full sm:w-auto hover:bg-slate-100 bg-white shadow-sm" onClick={() => window.open((selectedResult.paperImageUrl || selectedResult.PaperImageUrl)!, '_blank')}>
-                                Mở file trên tab khác
+                    <div className="shrink-0 p-4 md:p-5 bg-white/95 backdrop-blur-md border-t border-slate-200/60 flex flex-col gap-4 rounded-b-3xl">
+
+                        {/* KHU VỰC GIÁO VIÊN NHẬN XÉT BẰNG GIỌNG NÓI */}
+                        {userRole !== 'Student' && (
+                            <div className="space-y-2 w-full bg-slate-50/50 p-4 rounded-2xl border border-slate-200">
+                                <div className="flex justify-between items-center">
+                                    <label className="font-bold text-slate-700">Lời phê của giáo viên (tự động lưu):</label>
+                                    <VoiceRecorder
+                                        onTranscriptionComplete={(text) => {
+                                            setFeedbackText(prev => prev ? prev + " " + text : text);
+                                            // Bạn có thể thêm hàm gọi API lưu lên C# ở đây
+                                        }}
+                                    />
+                                </div>
+                                <textarea
+                                    value={feedbackText}
+                                    onChange={(e) => setFeedbackText(e.target.value)}
+                                    className="w-full h-24 p-4 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 shadow-inner resize-none text-sm font-medium"
+                                    placeholder="Gõ nhận xét hoặc bấm nút Thu âm để đọc..."
+                                />
+                            </div>
+                        )}
+
+                        {/* CÁC NÚT ĐÓNG MODAL */}
+                        <div className="flex justify-end gap-3 w-full">
+                            {selectedResult && (selectedResult.paperImageUrl !== "💻 Thi Trực Tuyến (Online Exam)" && selectedResult.PaperImageUrl !== "💻 Thi Trực Tuyến (Online Exam)") ? (
+                                <Button variant="outline" className="rounded-full font-bold px-6 border-slate-300 h-11 text-sm w-full sm:w-auto hover:bg-slate-100 bg-white shadow-sm" onClick={() => window.open((selectedResult.paperImageUrl || selectedResult.PaperImageUrl)!, '_blank')}>
+                                    Mở file trên tab khác
+                                </Button>
+                            ) : null}
+                            <Button className="rounded-full font-bold px-8 bg-slate-900 hover:bg-slate-800 text-white shadow-md h-11 text-sm w-full sm:w-auto" onClick={() => setSelectedResult(null)}>
+                                Đóng cửa sổ
                             </Button>
-                        ) : null}
-                        <Button className="rounded-full font-bold px-8 bg-slate-900 hover:bg-slate-800 text-white shadow-md h-11 text-sm w-full sm:w-auto" onClick={() => setSelectedResult(null)}>
-                            Đóng cửa sổ
-                        </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>
+            <AITutorModal
+                isOpen={tutorContext !== null}
+                onClose={() => setTutorContext(null)}
+                contextData={tutorContext}
+            />
         </div>
     )
 }

@@ -24,14 +24,16 @@ namespace AutoGrader.API.Controllers
         private readonly IRubricService _rubricService;
         private readonly ITaskCancellationManager _cancelManager;
         private readonly IRepository<Student> _studentRepo;
+        private readonly IRepository<StudentProfile> _profileRepo;
 
-        public GradingController(IGradingWorkflowService workflowService, IRepository<StudentResult> resultRepo, IRubricService rubricService, ITaskCancellationManager cancelManager, IRepository<Student> studentRepo)
+        public GradingController(IGradingWorkflowService workflowService, IRepository<StudentResult> resultRepo, IRubricService rubricService, ITaskCancellationManager cancelManager, IRepository<Student> studentRepo, IRepository<StudentProfile> profileRepo)
         {
             _workflowService = workflowService;
             _resultRepo = resultRepo;
             _rubricService = rubricService;
             _cancelManager = cancelManager;
             _studentRepo = studentRepo;
+            _profileRepo = profileRepo;
         }
 
         [HttpGet("results")]
@@ -145,6 +147,7 @@ namespace AutoGrader.API.Controllers
                     result = await _workflowService.ProcessOmrSubmissionAsync(request);
                     // 🔥 Truyền thêm request.TestId để xác định loại đề
                     await SyncScoreToStudentDashboard(result, request.StudentCode, request.TestId);
+                    await UpdateStudentGamificationAsync(request.StudentCode, result.TotalScore);
                 }
 
                 return Ok(result);
@@ -163,6 +166,7 @@ namespace AutoGrader.API.Controllers
                 var result = await _workflowService.ProcessOnlineSubmissionAsync(request);
                 // 🔥 Truyền thêm request.TestId
                 await SyncScoreToStudentDashboard(result, request.StudentCode, request.TestId);
+                await UpdateStudentGamificationAsync(request.StudentCode, result.TotalScore);
                 return Ok(result);
             }
             catch (InvalidOperationException ex)
@@ -257,6 +261,110 @@ namespace AutoGrader.API.Controllers
                 student.ExtraAttributes[targetColumn] = result.TotalScore;
 
                 await _studentRepo.UpdateAsync(student.Id, student);
+            }
+        }
+        // 🔥 HÀM TÍNH ĐIỂM KINH NGHIỆM (XP) VÀ CẬP NHẬT RANK CHO HỌC SINH
+        private async Task UpdateStudentGamificationAsync(string studentCode, double totalScore)
+        {
+            if (string.IsNullOrEmpty(studentCode)) return;
+
+            var allProfiles = await _profileRepo.GetAllAsync();
+            var profile = allProfiles.FirstOrDefault(p => p.StudentCode.Trim().ToLower() == studentCode.Trim().ToLower());
+
+            // Nếu học sinh chưa có profile Gamification, tự động tạo mới
+            if (profile == null)
+            {
+                profile = new StudentProfile
+                {
+                    StudentCode = studentCode,
+                    TotalXP = 0,
+                    Level = 1,
+                    CurrentRank = "Đồng",
+                    HighestScoreCount = 0
+                };
+                await _profileRepo.CreateAsync(profile);
+            }
+
+            // Quy luật thưởng XP dựa trên điểm số bài thi (Thang điểm 10)
+            int earnedXp = 50; // Điểm chuyên cần mặc định khi hoàn thành bài
+            if (totalScore >= 9.0)
+            {
+                earnedXp = 150; // Thưởng khủng cho điểm xuất sắc
+                profile.HighestScoreCount++;
+            }
+            else if (totalScore >= 8.0) earnedXp = 100;
+            else if (totalScore < 5.0) earnedXp = 20; // Điểm thấp vẫn có động lực
+
+            profile.TotalXP += earnedXp;
+
+            // Công thức tính Level đơn giản: Mỗi 500 XP lên 1 cấp độ
+            profile.Level = (profile.TotalXP / 500) + 1;
+
+            // Phân loại Rank dựa theo Level hoặc Tổng XP
+            if (profile.TotalXP >= 2500) profile.CurrentRank = "Thách Đấu 💎";
+            else if (profile.TotalXP >= 1500) profile.CurrentRank = "Kim Cương 💠";
+            else if (profile.TotalXP >= 1000) profile.CurrentRank = "Bạch Kim 👑";
+            else if (profile.TotalXP >= 600) profile.CurrentRank = "Vàng ⭐";
+            else if (profile.TotalXP >= 300) profile.CurrentRank = "Bạc 🥈";
+            else profile.CurrentRank = "Đồng 🥉";
+
+            await _profileRepo.UpdateAsync(profile.Id, profile);
+        }
+        // ==========================================
+        // API MỚI: XỬ LÝ VI PHẠM / BỎ QUA CẢNH BÁO
+        // ==========================================
+        public class ResolveFlagDto
+        {
+            public string Action { get; set; } = string.Empty; // "penalize" (Phạt) hoặc "ignore" (Bỏ qua)
+        }
+
+        [HttpPut("{id}/resolve-flag")]
+        [Authorize(Roles = "Admin,Teacher")]
+        public async Task<IActionResult> ResolveFlag(string id, [FromBody] ResolveFlagDto dto)
+        {
+            try
+            {
+                var result = await _resultRepo.GetByIdAsync(id);
+                if (result == null) return NotFound("Không tìm thấy kết quả bài thi này.");
+
+                if (dto.Action == "penalize")
+                {
+                    // 1. Phạt 0 điểm toàn bài
+                    result.TotalScore = 0;
+
+                    // 🔥 SỬA DÒNG NÀY: Thay OverallFeedback bằng PlagiarismNote
+                    result.PlagiarismNote = "❌ Bài làm bị hủy kết quả (0 điểm) do vi phạm quy chế thi / đạo văn.";
+
+                    // 2. Ép tất cả các câu về 0 điểm
+                    if (result.GradingDetails != null)
+                    {
+                        foreach (var detail in result.GradingDetails)
+                        {
+                            detail.FinalScore = 0;
+                            detail.TeacherCorrection = "Hủy điểm do vi phạm quy chế.";
+                            detail.IsTeacherModified = true;
+                        }
+                    }
+                }
+                else if (dto.Action == "ignore")
+                {
+                    // Gỡ bỏ toàn bộ cờ đỏ
+                    result.IsPlagiarized = false;
+                    result.NeedsManualReview = false;
+                    result.PlagiarismNote = "";
+                }
+
+                await _resultRepo.UpdateAsync(id, result);
+
+                return Ok(new
+                {
+                    message = dto.Action == "penalize" ? "Đã xử phạt 0 điểm!" : "Đã gỡ cảnh báo thành công!",
+                    data = result
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Lỗi server: {ex.Message}");
             }
         }
     }

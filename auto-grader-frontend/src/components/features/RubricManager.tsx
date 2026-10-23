@@ -10,7 +10,7 @@ import 'katex/dist/katex.min.css';
 import { InlineMath } from 'react-katex';
 import BubbleSheet from './BubbleSheet';
 import axios from 'axios'
-import { Plus, Printer, Trash2, ClipboardCheck, Loader2, Edit, LayoutList, Search, ScanText, Camera, CheckCircle2, ChevronRight, Globe, Settings2, Shuffle, ChevronLeft, Download, Upload, ChevronDown } from "lucide-react"
+import { Plus, Printer, Trash2, ClipboardCheck, Loader2, Edit, LayoutList, Search, ScanText, Camera, CheckCircle2, ChevronRight, Globe, Settings2, Shuffle, ChevronLeft, Download, Upload, ChevronDown, Sparkles } from "lucide-react"
 
 interface Question {
     order: number;
@@ -274,7 +274,66 @@ export default function RubricManager() {
         downloadAnchorNode.remove();
         toast.success("Đã xuất file Barem!");
     };
+    const handleGenerateRubricFromImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
 
+        // Tránh tình trạng đang quét cái này lại bấm quét cái khác
+        if (isScanning) {
+            toast.warning("Hệ thống đang bận phân tích một tác vụ khác. Vui lòng chờ!");
+            return;
+        }
+
+        try {
+            setIsScanning(true);
+            const toastId = toast.loading("🤖 AI đang phân tích ảnh và số hóa Barem...");
+
+            // Đóng gói file để gửi lên API
+            const formData = new FormData();
+            formData.append('file', file);
+            // Có thể bạn cần đổi tên trường cho khớp với Backend C# của bạn
+            formData.append('ImageFile', file);
+
+            // Gọi endpoint C# bạn đã viết ở GradingController hoặc RubricsController
+            const response = await axios.post('/api/Rubrics/auto-generate', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            // Tương thích với các định dạng trả về khác nhau
+            const data = response.data.data || response.data;
+
+            if (data && data.questions) {
+                // Ánh xạ lại dữ liệu từ JSON sang chuẩn của giao diện
+                const formattedQuestions = data.questions.map((q: any, idx: number) => ({
+                    order: q.questionNumber || q.Order || idx + 1,
+                    questionType: q.questionType || q.QuestionType || 'Essay',
+                    content: q.content || q.Content || q.ExpectedAnswer || '',
+                    options: q.options || q.Options || '|||',
+                    correctAnswer: q.correctAnswer || q.CorrectAnswer || '',
+                    explanation: q.explanation || q.Explanation || '',
+                    maxScore: q.maxScore || q.MaxScore || 1.0
+                }));
+
+                // Cập nhật lên State để hiện ra màn hình
+                setNewRubric(prev => ({
+                    ...prev,
+                    title: data.title || data.Title || prev.title,
+                    questions: formattedQuestions
+                }));
+
+                toast.success("✨ Số hóa Barem từ ảnh thành công!", { id: toastId });
+            } else {
+                toast.error("Không thể trích xuất Barem từ ảnh này.", { id: toastId });
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Lỗi khi gọi AI phân tích ảnh Barem!");
+        } finally {
+            setIsScanning(false);
+            // Reset ô input để có thể chọn lại cùng một file
+            e.target.value = '';
+        }
+    };
     const handleImportRubric = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -845,13 +904,18 @@ export default function RubricManager() {
                                                 <Button variant="ghost" size="sm" className="h-7 text-xs rounded text-purple-700 hover:bg-white font-bold" onClick={() => document.getElementById('scan-exam')?.click()} disabled={isScanning}>
                                                     {isScanning ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <ScanText className="w-3 h-3 mr-1" />} Đọc Đề AI
                                                 </Button>
-
                                                 <input type="file" id="scan-answer" accept=".json, .txt, .pdf, .doc, .docx, .xls, .xlsx, image/*" className="hidden" onChange={handleScanAnswerKey} disabled={isScanning} />
                                                 <Button variant="ghost" size="sm" className="h-7 text-xs rounded text-fuchsia-700 hover:bg-white font-bold" onClick={() => document.getElementById('scan-answer')?.click()} disabled={isScanning}>
                                                     {isScanning ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />} Đọc Đáp Án
                                                 </Button>
                                             </div>
-
+                                            {/* CHÈN THÊM KHỐI MÀU CAM: AI SINH BAREM */}
+                                            <div className="flex bg-amber-50 p-1 rounded-md border border-amber-100">
+                                                <input type="file" id="auto-gen-rubric" accept="image/*" className="hidden" onChange={handleGenerateRubricFromImage} disabled={isScanning} />
+                                                <Button variant="ghost" size="sm" className="h-7 text-xs rounded text-amber-700 hover:bg-white font-bold" onClick={() => document.getElementById('auto-gen-rubric')?.click()} disabled={isScanning}>
+                                                    {isScanning ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />} AI Sinh Barem
+                                                </Button>
+                                            </div>
                                             <div className="flex bg-teal-50 p-1 rounded-md border border-teal-100">
                                                 <input type="file" id="import-rubric" accept=".json, .txt, .pdf, .doc, .docx, .xls, .xlsx, image/*" className="hidden" onChange={handleImportRubric} />
                                                 <Button variant="ghost" size="sm" className="h-7 text-xs rounded text-teal-700 hover:bg-white font-bold" onClick={() => document.getElementById('import-rubric')?.click()}>

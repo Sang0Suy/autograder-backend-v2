@@ -5,6 +5,7 @@ import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import type { TooltipProps } from 'recharts';
+import StudentLeaderboard from '@/components/features/StudentLeaderboard';
 
 interface ProgressItem {
     examName: string;
@@ -256,7 +257,9 @@ export default function StudentDashboard() {
                         </div>
                     )}
                 </div>
-
+                <div className="mt-8">
+                    <StudentLeaderboard />
+                </div>
                 {/* CỘT BÊN PHẢI: BẢNG LỊCH SỬ LÀM BÀI */}
                 <div className="bg-white/80 backdrop-blur-2xl p-6 md:p-8 rounded-[2rem] shadow-[0_10px_40px_rgb(0,0,0,0.06)] border border-white lg:col-span-2">
                     <div className="flex justify-between items-center mb-6">
