@@ -137,6 +137,7 @@ export default function SupportChatbot() {
                     onClick={() => setIsOpen(true)}
                     className="w-14 h-14 bg-gradient-to-r from-indigo-600 to-blue-600 rounded-full shadow-[0_8px_30px_rgba(79,70,229,0.4)] flex items-center justify-center text-white hover:scale-110 transition-transform duration-300"
                 >
+
                     <MessageCircle className="w-7 h-7" />
                 </button>
             )}
