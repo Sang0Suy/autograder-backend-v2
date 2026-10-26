@@ -8,6 +8,7 @@ using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.SemanticKernel;
 using Polly;
 using Polly.Extensions.Http;
 using System.Net;
@@ -121,7 +122,11 @@ builder.Services.AddCors(options =>
               .AllowCredentials();                // Giữ lại linh hồn cho SignalR hoạt động mượt mà
     });
 });
-
+builder.Services.AddKernel()
+    .AddGoogleAIGeminiChatCompletion(
+        modelId: "gemini-1.5-flash", // Hoặc gemini-1.5-pro tùy nhu cầu
+        apiKey: builder.Configuration["AIKeys:Gemini"] // Lấy Key từ appsettings.json
+    );
 // 3. Đăng ký các Business Services
 builder.Services.AddScoped<ITestService, TestService>();
 builder.Services.AddScoped<IRepository<Rubric>, MongoRepository<Rubric>>();
@@ -141,6 +146,7 @@ builder.Services.AddSingleton<AutoGrader.Application.Interfaces.IGradingNotifica
 builder.Services.AddSingleton<ITaskCancellationManager, TaskCancellationManager>();
 builder.Services.AddScoped<IRepository<CorrectionRule>, MongoRepository<CorrectionRule>>();
 builder.Services.AddScoped<IFileExtractionService, FileExtractionService>();
+builder.Services.AddSingleton<IChatbotService, ChatbotService>();
 builder.Services.AddTransient<BatchGradingJob>();
 builder.Services.AddScoped<PlagiarismDetectionService>();
 // 🔥 1. Sửa lại đăng ký gửi thông báo qua Interface (Dependency Inversion chuẩn)

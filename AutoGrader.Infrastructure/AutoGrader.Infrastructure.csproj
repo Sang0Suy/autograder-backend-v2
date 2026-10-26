@@ -16,6 +16,8 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.8" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.81.0" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Google" Version="1.81.0-alpha" />
     <PackageReference Include="MongoDB.Driver" Version="3.8.1" />
     <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260526" />
     <PackageReference Include="OpenCvSharp4.official.runtime.linux-x64" Version="4.13.0.20260526" />

@@ -21,6 +21,7 @@ import NotificationBell from './components/features/NotificationBell'; // Sửa 
 import { ShieldAlert } from 'lucide-react' // Thêm icon này vào danh sách import lucide-react
 import OfflineScanner from './components/features/OfflineScanner';
 import EcosystemSync from './components/features/EcosystemSync';
+import SupportChatbot from './components/features/SupportChatbot';
 type TabType = 'upload' | 'rubric' | 'history' | 'class' | 'account' | 'plagiarism' | 'scanner' | 'sync';
 
 // Giao diện chính sau khi đăng nhập
@@ -108,10 +109,15 @@ function MainApp() {
 
             <div className="max-w-[1400px] mx-auto space-y-6 print:space-y-0 relative z-10">
 
-                {/* 🔥 HEADER ĐÃ ĐƯỢC LÀM STICKY VÀ NỔI BẬT HƠN */}
-                <div className="sticky top-2 md:top-4 z-50 flex flex-col xl:flex-row items-center justify-between bg-white/80 backdrop-blur-2xl p-4 md:p-6 rounded-[2rem] shadow-[0_10px_40px_rgb(0,0,0,0.08)] border border-white print:hidden relative overflow-hidden gap-4 md:gap-6 transition-all">
-                    <div className="absolute top-0 left-0 w-64 h-64 bg-gradient-to-br from-indigo-100 to-blue-50 rounded-full blur-3xl -z-10 opacity-70 -translate-x-1/3 -translate-y-1/3"></div>
+                {/* 🔥 HEADER ĐÃ ĐƯỢC DỌN DẸP SẠCH SẼ - KHÔNG OVERFLOW CẮT MENU */}
+                <div className="sticky top-2 md:top-4 z-50 flex flex-col xl:flex-row items-center justify-between bg-white/80 backdrop-blur-2xl p-4 md:p-6 rounded-[2rem] shadow-[0_10px_40px_rgb(0,0,0,0.08)] border border-white print:hidden relative gap-4 md:gap-6 transition-all">
 
+                    {/* 1. LỚP BACKGROUND ĐƯỢC TÁCH RIÊNG (Cắt gọn gàng theo viền bo tròn) */}
+                    <div className="absolute inset-0 rounded-[2rem] overflow-hidden pointer-events-none -z-10">
+                        <div className="absolute top-0 left-0 w-64 h-64 bg-gradient-to-br from-indigo-100 to-blue-50 rounded-full blur-3xl opacity-70 -translate-x-1/3 -translate-y-1/3"></div>
+                    </div>
+
+                    {/* 2. LỚP NỘI DUNG BÊN TRÊN (Menu, Nút bấm, Thông báo - Không bị cắt) */}
                     <div className="flex items-center justify-between w-full xl:w-auto">
                         <div className="cursor-pointer" onClick={() => navigate('/')}>
                             <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
@@ -131,7 +137,6 @@ function MainApp() {
 
                     <div className="flex flex-wrap items-center justify-center xl:justify-end gap-2.5 w-full xl:w-auto">
 
-                        {/* 🔥 NÚT VÀO PHÒNG THI DÀNH CHO HỌC SINH */}
                         {userRole === 'Student' && (
                             <Button
                                 onClick={() => setIsExamModalOpen(true)}
@@ -167,7 +172,6 @@ function MainApp() {
                             </Button>
                         )}
 
-                        {/* 🔥 MỞ KHÓA TAB LỊCH SỬ CHO HỌC SINH */}
                         <Button
                             onClick={() => switchTab('history')}
                             className={`rounded-full px-6 font-bold shadow-sm transition-all duration-300 ${activeTab === 'history' ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md transform scale-105 border-none' : 'bg-white/60 text-slate-600 hover:bg-white border-white'}`}
@@ -185,7 +189,7 @@ function MainApp() {
                                 Quản Lý Tài Khoản
                             </Button>
                         )}
-                        {/* NÚT KIỂM DUYỆT (CHỈ GIÁO VIÊN/ADMIN THẤY) */}
+
                         {userRole !== 'Student' && (
                             <Button
                                 onClick={() => switchTab('plagiarism')}
@@ -195,6 +199,7 @@ function MainApp() {
                                 <ShieldAlert className={`w-4 h-4 mr-2 ${activeTab === 'plagiarism' ? 'text-white' : 'text-red-500'}`} /> Duyệt Vi Phạm
                             </Button>
                         )}
+
                         <Button
                             onClick={() => switchTab('scanner')}
                             className={`rounded-full px-6 font-bold shadow-sm transition-all duration-300 ${activeTab === 'scanner' ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md transform scale-105 border-none' : 'bg-white/60 text-slate-600 hover:bg-white border-white'}`}
@@ -202,6 +207,7 @@ function MainApp() {
                         >
                             📸 Máy Quét Offline
                         </Button>
+
                         {userRole !== 'Student' && (
                             <Button
                                 onClick={() => switchTab('sync')}
@@ -211,18 +217,18 @@ function MainApp() {
                                 <Cloud className="w-4 h-4 mr-2" /> Đồng Bộ LMS
                             </Button>
                         )}
-                        <div className="hidden xl:flex items-center pl-4 ml-2 border-l border-slate-200/60 gap-2">
-                            {/* 🔥 NÚT GÓP Ý */}
+
+                        <div className="hidden xl:flex items-center pl-4 ml-2 border-l border-slate-200/60 gap-2 relative z-50">
                             <Button variant="ghost" onClick={() => setIsFeedbackModalOpen(true)} className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-full font-bold px-4">
                                 <Star className="w-4 h-4 mr-2" /> Đánh giá
                             </Button>
+
                             <NotificationBell />
-                            {/* Nút Hồ Sơ Của Tôi */}
+
                             <Button variant="ghost" onClick={() => setIsProfileModalOpen(true)} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-full font-bold px-4">
                                 <UserCircle className="w-4 h-4 mr-2" /> Hồ sơ
                             </Button>
 
-                            {/* Nút Đăng Xuất */}
                             <Button variant="ghost" onClick={handleLogout} className="text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-full font-bold px-4">
                                 <LogOut className="w-4 h-4 mr-2" /> Đăng xuất
                             </Button>
@@ -301,6 +307,7 @@ function MainApp() {
                     role: userRole
                 }}
             />
+            <SupportChatbot />
         </div>
     )
 }

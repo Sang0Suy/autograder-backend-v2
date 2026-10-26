@@ -84,8 +84,7 @@ export default function NotificationBell() {
 
             {/* DROPDOWN THÔNG BÁO */}
             {isOpen && (
-                <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-3xl shadow-2xl overflow-hidden origin-top-right animate-in zoom-in-95 duration-200">
-                    <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50/50">
+                <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-3xl shadow-2xl overflow-hidden origin-top-right animate-in zoom-in-95 duration-200 z-[999]">                    <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50/50">
                         <h3 className="font-black text-slate-800 text-lg">Thông báo</h3>
                         {notifications.length > 0 && (
                             <button onClick={clearAll} className="text-xs font-bold text-indigo-600 hover:text-indigo-800">Xóa tất cả</button>
