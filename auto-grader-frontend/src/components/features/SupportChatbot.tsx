@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, Loader2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-//import axios from 'axios';
+// import axios from 'axios';
 
 interface ChatMessage {
     id: string;
@@ -13,13 +13,13 @@ interface ChatMessage {
 export default function SupportChatbot() {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([
-        { id: '1', role: 'bot', content: 'Ch�o b?n! M�nh l� Tr? l� AI c?a AutoGrader. M�nh c� th? gi�p g� cho b?n trong vi?c t?o d?, ch?m thi hay qu?n l� l?p h?c?' }
+        { id: '1', role: 'bot', content: 'Chào bạn! Mình là Trợ lý AI của AutoGrader. Mình có thể giúp gì cho bạn trong việc tạo đề, chấm thi hay quản lý lớp học?' }
     ]);
     const [inputText, setInputText] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // T? d?ng cu?n xu?ng tin nh?n m?i nh?t
+    // Tự động cuộn xuống tin nhắn mới nhất
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
@@ -37,17 +37,17 @@ export default function SupportChatbot() {
         setIsTyping(true);
 
         try {
-            // TODO: G?i API Backend C# (Semantic Kernel + Gemini API)
+            // TODO: Gọi API Backend C# (Semantic Kernel + Gemini API)
             // const response = await axios.post('/api/Chatbot/ask', { message: userMsg.content });
             // const botReply = response.data.reply;
 
-            // Gi? l?p delay ph?n h?i c?a AI
+            // Giả lập delay phản hồi của AI
             await new Promise(resolve => setTimeout(resolve, 1500));
-            const botReply = "��y l� ph?n h?i m?u t? h? th?ng. Khi Backend C# ho�n thi?n, d? li?u t? Gemini s? du?c tr? v? t?i d�y!";
+            const botReply = "Đây là phản hồi mẫu từ hệ thống. Khi Backend C# hoàn thiện, dữ liệu từ Gemini sẽ được trả về tại đây!";
 
             setMessages(prev => [...prev, { id: Date.now().toString(), role: 'bot', content: botReply }]);
         } catch {
-            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'bot', content: 'Xin l?i, h? th?ng AI dang b?n. Vui l�ng th? l?i sau.' }]);
+            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'bot', content: 'Xin lỗi, hệ thống AI đang bận. Vui lòng thử lại sau.' }]);
         } finally {
             setIsTyping(false);
         }
@@ -55,7 +55,7 @@ export default function SupportChatbot() {
 
     return (
         <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end">
-            {/* C?A S? CHAT */}
+            {/* CỬA SỔ CHAT */}
             {isOpen && (
                 <div className="mb-4 w-[350px] sm:w-[400px] h-[500px] bg-white/95 backdrop-blur-2xl rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-300">
 
@@ -68,7 +68,7 @@ export default function SupportChatbot() {
                             <div>
                                 <h3 className="font-black text-lg leading-tight">AutoGrader AI</h3>
                                 <p className="text-indigo-100 text-xs font-medium flex items-center gap-1">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> �ang tr?c tuy?n
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Đang trực tuyến
                                 </p>
                             </div>
                         </div>
@@ -77,7 +77,7 @@ export default function SupportChatbot() {
                         </button>
                     </div>
 
-                    {/* Khu v?c n?i dung Chat */}
+                    {/* Khu vực nội dung Chat */}
                     <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50/50">
                         {messages.map((msg) => (
                             <div key={msg.id} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -107,14 +107,14 @@ export default function SupportChatbot() {
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* � nh?p li?u (Input) */}
+                    {/* Ô nhập liệu (Input) */}
                     <div className="p-4 bg-white border-t border-slate-100 shrink-0">
                         <div className="relative flex items-center">
                             <Input
                                 value={inputText}
                                 onChange={(e) => setInputText(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                placeholder="H?i AI v? c�ch s? d?ng h? th?ng..."
+                                placeholder="Hỏi AI về cách sử dụng hệ thống..."
                                 className="pr-12 h-12 rounded-xl bg-slate-50 border-slate-200 focus-visible:ring-indigo-500 font-medium"
                                 disabled={isTyping}
                             />
@@ -131,13 +131,12 @@ export default function SupportChatbot() {
                 </div>
             )}
 
-            {/* N�T BONG B�NG M? CHAT */}
+            {/* NÚT BONG BÓNG MỞ CHAT */}
             {!isOpen && (
                 <button
                     onClick={() => setIsOpen(true)}
                     className="w-14 h-14 bg-gradient-to-r from-indigo-600 to-blue-600 rounded-full shadow-[0_8px_30px_rgba(79,70,229,0.4)] flex items-center justify-center text-white hover:scale-110 transition-transform duration-300"
                 >
-
                     <MessageCircle className="w-7 h-7" />
                 </button>
             )}
